@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 
 class TwoFactorService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -16,11 +17,11 @@ class TwoFactorService {
         password: password,
       );
       
-      // Nous stockons l'utilisateur temporairement, mais nous ne considérons pas
-      // l'authentification comme complète tant que l'OTP n'est pas validé
+      // Stockage temporaire de l'utilisateur
       _authenticatedUser = userCredential.user;
       return userCredential.user;
     } catch (e) {
+      debugPrint('Erreur dans signInWithEmailPassword: $e');
       rethrow;
     }
   }
@@ -40,6 +41,7 @@ class TwoFactorService {
           onVerificationCompleted(credential);
         },
         verificationFailed: (FirebaseAuthException e) {
+          debugPrint('Échec de la vérification du téléphone: ${e.code} - ${e.message}');
           onVerificationFailed(e);
         },
         codeSent: (String verificationId, int? resendToken) {
@@ -54,41 +56,46 @@ class TwoFactorService {
         forceResendingToken: _resendToken,
       );
     } catch (e) {
+      debugPrint('Erreur dans sendOtpToPhone: $e');
       rethrow;
     }
   }
 
   // Vérifier le code OTP saisi par l'utilisateur
-  Future<bool> verifyOtpCode({
-    required String smsCode,
-  }) async {
+  Future<bool> verifyOtpCode({required String smsCode}) async {
     try {
       if (_verificationId == null) {
         throw Exception('ID de vérification non disponible');
       }
 
-      // Créer un objet PhoneAuthCredential avec le code fourni
       PhoneAuthCredential credential = PhoneAuthProvider.credential(
         verificationId: _verificationId!,
         smsCode: smsCode,
       );
 
-      // Pour l'authentification à deux facteurs, nous vérifions simplement si le code est valide
-      // sans connecter l'utilisateur car il est déjà connecté avec email/mot de passe
       try {
-        // Lier cette credential au compte déjà authentifié
         if (_authenticatedUser != null) {
+          // Lier cette credential au compte déjà authentifié
           await _authenticatedUser!.linkWithCredential(credential);
+          
+          // IMPORTANT: Recharger l'utilisateur pour mettre à jour ses propriétés
+          await _authenticatedUser!.reload();
+          _authenticatedUser = _auth.currentUser;
+          
+          return true;
+        } else {
+          throw Exception("L'utilisateur n'est pas authentifié");
         }
-        return true;
       } catch (e) {
         // Si le téléphone est déjà lié à cet utilisateur, c'est OK
         if (e is FirebaseAuthException && e.code == 'provider-already-linked') {
           return true;
         }
+        debugPrint('Erreur lors de la vérification OTP: $e');
         rethrow;
       }
     } catch (e) {
+      debugPrint('Exception dans verifyOtpCode: $e');
       rethrow;
     }
   }
@@ -99,6 +106,7 @@ class TwoFactorService {
       await _auth.signOut();
       _authenticatedUser = null;
     } catch (e) {
+      debugPrint('Erreur lors de la déconnexion: $e');
       rethrow;
     }
   }
@@ -109,7 +117,6 @@ class TwoFactorService {
     if (user == null) return false;
     
     // Vérifier si l'utilisateur a un fournisseur de téléphone lié
-    // Ce qui confirmerait que l'authentification à deux facteurs est complète
     return user.providerData.any((element) => element.providerId == 'phone');
   }
   

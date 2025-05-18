@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../../services/biometric_service.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
-import 'package:monpass/services/two_factor_service.dart.dart';
+import 'package:monpass/services/two_factor_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});

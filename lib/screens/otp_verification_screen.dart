@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:monpass/services/two_factor_service.dart.dart'; // Assurez-vous que ce chemin est correct
+import 'package:monpass/services/two_factor_service.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
@@ -44,68 +44,68 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   // Envoyer un code OTP au numéro de téléphone
   Future<void> _sendOtp() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+  setState(() {
+    _isLoading = true;
+    _errorMessage = null;
+  });
 
-    String phoneNumber = _phoneController.text.trim();
-    
-    // Vérifier si le numéro de téléphone commence par un +
-    if (!phoneNumber.startsWith('+')) {
-      phoneNumber = '+$phoneNumber';
-    }
-
-    try {
-      await _twoFactorService.sendOtpToPhone(
-        phoneNumber: phoneNumber,
-        onCodeSent: (verificationId) {
-          setState(() {
-            _codeSent = true;
-            _isLoading = false;
-          });
-          
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Code envoyé à $phoneNumber'),
-              backgroundColor: _primaryColor,
-            ),
-          );
-        },
-        onVerificationFailed: (e) {
-          setState(() {
-            _isLoading = false;
-            _errorMessage = e.message ?? 'Erreur lors de l\'envoi du code';
-          });
-        },
-        onVerificationCompleted: (credential) async {
-          // Auto-vérification sur Android (rare pour 2FA)
-          try {
-            bool success = await _twoFactorService.verifyOtpCode(
-              smsCode: credential.smsCode ?? '',
-            );
-            
-            if (success && mounted) {
-              _navigateToHome();
-            }
-          } catch (e) {
-            if (mounted) {
-              setState(() {
-                _isLoading = false;
-                _errorMessage = 'Erreur d\'authentification: $e';
-              });
-            }
-          }
-        },
-      );
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = 'Erreur: $e';
-      });
-    }
+  String phoneNumber = _phoneController.text.trim();
+  
+  // Formater le numéro de téléphone
+  if (!phoneNumber.startsWith('+')) {
+    phoneNumber = '+$phoneNumber';
   }
 
+  try {
+    await _twoFactorService.sendOtpToPhone(
+      phoneNumber: phoneNumber,
+      onCodeSent: (verificationId) {
+        setState(() {
+          _codeSent = true;
+          _isLoading = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Code envoyé à $phoneNumber'),
+            backgroundColor: _primaryColor,
+          ),
+        );
+      },
+      onVerificationFailed: (e) {
+        print('Échec de la vérification du téléphone: ${e.code} - ${e.message}');
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Erreur: ${e.message ?? e.code}';
+        });
+      },
+      onVerificationCompleted: (credential) async {
+        // Auto-vérification sur Android (rare pour 2FA)
+        try {
+          bool success = await _twoFactorService.verifyOtpCode(
+            smsCode: credential.smsCode ?? '',
+          );
+          
+          if (success && mounted) {
+            _navigateToHome();
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _errorMessage = 'Erreur d\'authentification: $e';
+            });
+          }
+        }
+      },
+    );
+  } catch (e) {
+    setState(() {
+      _isLoading = false;
+      _errorMessage = 'Erreur: $e';
+    });
+  }
+}
   // Vérifier le code OTP saisi
   Future<void> _verifyOtp() async {
     setState(() {
