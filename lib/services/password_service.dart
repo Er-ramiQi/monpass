@@ -3,21 +3,23 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../models/password_model.dart';
 import 'secure_storage_service.dart';
+import 'dart:math';
 
 class PasswordService {
   final SecureStorageService _secureStorage;
   final String _userId;
-  
+  final random = Random.secure();
+
   // Liste en mémoire des mots de passe
   List<PasswordModel> _passwords = [];
   bool _isInitialized = false;
 
   PasswordService(this._secureStorage, this._userId);
-  
+
   // Initialiser le service avec les mots de passe stockés
   Future<void> initialize() async {
     if (_isInitialized) return;
-    
+
     await _loadPasswords();
     _isInitialized = true;
   }
@@ -30,11 +32,10 @@ class PasswordService {
         _passwords = [];
         return;
       }
-      
+
       List<dynamic> decodedList = jsonDecode(passwordsJson);
-      _passwords = decodedList
-          .map((item) => PasswordModel.fromMap(item))
-          .toList();
+      _passwords =
+          decodedList.map((item) => PasswordModel.fromMap(item)).toList();
     } catch (e) {
       debugPrint('Erreur de chargement des mots de passe: $e');
       _passwords = [];
@@ -44,10 +45,9 @@ class PasswordService {
   // Sauvegarder tous les mots de passe
   Future<bool> _savePasswords() async {
     try {
-      List<Map<String, dynamic>> passwordMaps = _passwords
-          .map((password) => password.toMap())
-          .toList();
-      
+      List<Map<String, dynamic>> passwordMaps =
+          _passwords.map((password) => password.toMap()).toList();
+
       String passwordsJson = jsonEncode(passwordMaps);
       await _secureStorage.write('passwords_$_userId', passwordsJson);
       return true;
@@ -76,15 +76,13 @@ class PasswordService {
   // Ajouter un nouveau mot de passe
   Future<bool> addPassword(PasswordModel password) async {
     if (!_isInitialized) await initialize();
-    
+
     try {
       // S'assurer qu'il y a un ID unique
       if (password.id.isEmpty) {
-        password = password.copyWith(
-          id: const Uuid().v4(),
-        );
+        password = password.copyWith(id: const Uuid().v4());
       }
-      
+
       _passwords.add(password);
       return await _savePasswords();
     } catch (e) {
@@ -96,15 +94,13 @@ class PasswordService {
   // Mettre à jour un mot de passe existant
   Future<bool> updatePassword(PasswordModel updatedPassword) async {
     if (!_isInitialized) await initialize();
-    
+
     try {
       int index = _passwords.indexWhere((p) => p.id == updatedPassword.id);
       if (index == -1) return false;
-      
-      _passwords[index] = updatedPassword.copyWith(
-        updatedAt: DateTime.now(),
-      );
-      
+
+      _passwords[index] = updatedPassword.copyWith(updatedAt: DateTime.now());
+
       return await _savePasswords();
     } catch (e) {
       debugPrint('Erreur de mise à jour de mot de passe: $e');
@@ -115,7 +111,7 @@ class PasswordService {
   // Supprimer un mot de passe
   Future<bool> deletePassword(String id) async {
     if (!_isInitialized) await initialize();
-    
+
     try {
       _passwords.removeWhere((password) => password.id == id);
       return await _savePasswords();
@@ -128,17 +124,17 @@ class PasswordService {
   // Marquer un mot de passe comme favori
   Future<bool> toggleFavorite(String id) async {
     if (!_isInitialized) await initialize();
-    
+
     try {
       int index = _passwords.indexWhere((p) => p.id == id);
       if (index == -1) return false;
-      
+
       PasswordModel password = _passwords[index];
       _passwords[index] = password.copyWith(
         isFavorite: !password.isFavorite,
         updatedAt: DateTime.now(),
       );
-      
+
       return await _savePasswords();
     } catch (e) {
       debugPrint('Erreur de marquage de favori: $e');
@@ -149,12 +145,12 @@ class PasswordService {
   // Recherche de mots de passe
   Future<List<PasswordModel>> searchPasswords(String query) async {
     if (!_isInitialized) await initialize();
-    
+
     query = query.toLowerCase();
     return _passwords.where((password) {
       return password.title.toLowerCase().contains(query) ||
-             password.username.toLowerCase().contains(query) ||
-             password.website.toLowerCase().contains(query);
+          password.username.toLowerCase().contains(query) ||
+          password.website.toLowerCase().contains(query);
     }).toList();
   }
 
@@ -165,26 +161,69 @@ class PasswordService {
     bool includeLowercase = true,
     bool includeNumbers = true,
     bool includeSpecial = true,
+    bool avoidAmbiguous = false,
   }) {
     const String uppercaseChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const String lowercaseChars = 'abcdefghijklmnopqrstuvwxyz';
     const String numberChars = '0123456789';
-    const String specialChars = '!@#\$%^&*()_+-=[]{}|;:,.<>?';
-    
+    const String specialChars = '!@#\$%^&*()_-+=[]{}|;:,.<>?';
+
+    // Ambiguous characters that can be confused with others
+    const String ambiguousChars = 'l1IO0';
+
     String chars = '';
     if (includeUppercase) chars += uppercaseChars;
     if (includeLowercase) chars += lowercaseChars;
     if (includeNumbers) chars += numberChars;
     if (includeSpecial) chars += specialChars;
-    
+
+    // Remove ambiguous characters if requested
+    if (avoidAmbiguous) {
+      for (var c in ambiguousChars.split('')) {
+        chars = chars.replaceAll(c, '');
+      }
+    }
+
+    // Ensure at least one character set is included
     if (chars.isEmpty) {
-      // Au moins un groupe doit être sélectionné
       chars = lowercaseChars + numberChars;
     }
-    
-    return List.generate(length, (index) {
-      final randomIndex = DateTime.now().microsecondsSinceEpoch % chars.length;
-      return chars[randomIndex];
-    }).join('');
+
+    // Generate password
+    final random = Random.secure();
+    String password = '';
+
+    // Ensure at least one of each required character type
+    if (includeUppercase && length >= 1) {
+      final randomIndex = random.nextInt(uppercaseChars.length);
+      password += uppercaseChars[randomIndex];
+    }
+
+    if (includeLowercase && length >= password.length + 1) {
+      final randomIndex = random.nextInt(lowercaseChars.length);
+      password += lowercaseChars[randomIndex];
+    }
+
+    if (includeNumbers && length >= password.length + 1) {
+      final randomIndex = random.nextInt(numberChars.length);
+      password += numberChars[randomIndex];
+    }
+
+    if (includeSpecial && length >= password.length + 1) {
+      final randomIndex = random.nextInt(specialChars.length);
+      password += specialChars[randomIndex];
+    }
+
+    // Fill the rest with random characters
+    while (password.length < length) {
+      final randomIndex = random.nextInt(chars.length);
+      password += chars[randomIndex];
+    }
+
+    // Shuffle the password to avoid predictable patterns
+    final passwordChars = password.split('');
+    passwordChars.shuffle(random);
+
+    return passwordChars.join('');
   }
 }

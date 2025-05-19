@@ -1,5 +1,6 @@
 // lib/theme/app_theme.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart' show WidgetStateProperty, WidgetState;
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
@@ -47,12 +48,13 @@ class AppTheme {
         primary: primaryColor,
         secondary: secondaryColor,
         surface: Colors.white,
-        background: gray50,
+        // Utiliser surface au lieu de background (déprécié)
+        // onSurface au lieu de onBackground (déprécié)
+        surface: gray50,
         error: errorColor,
         onPrimary: Colors.white,
         onSecondary: Colors.white,
-        onSurface: gray900,
-        onBackground: gray800,
+        onSurface: gray800,
         onError: Colors.white,
         brightness: Brightness.light,
       ),
@@ -142,7 +144,7 @@ class AppTheme {
           borderRadius: BorderRadius.circular(16),
         ),
         color: Colors.white,
-        shadowColor: Colors.black.withOpacity(0.1),
+        shadowColor: Colors.black.withValues(alpha: (255 * 0.1).round()),
       ),
       
       // Snackbar
@@ -183,8 +185,8 @@ class AppTheme {
       
       // Checkbox
       checkboxTheme: CheckboxThemeData(
-        fillColor: MaterialStateProperty.resolveWith<Color>((states) {
-          if (states.contains(MaterialState.selected)) {
+        fillColor: WidgetStateProperty.resolveWith<Color>((states) {
+          if (states.contains(WidgetState.selected)) {
             return primaryColor;
           }
           return gray300;
@@ -196,15 +198,15 @@ class AppTheme {
       
       // Switch
       switchTheme: SwitchThemeData(
-        thumbColor: MaterialStateProperty.resolveWith<Color>((states) {
-          if (states.contains(MaterialState.selected)) {
+        thumbColor: WidgetStateProperty.resolveWith<Color>((states) {
+          if (states.contains(WidgetState.selected)) {
             return primaryColor;
           }
           return gray400;
         }),
-        trackColor: MaterialStateProperty.resolveWith<Color>((states) {
-          if (states.contains(MaterialState.selected)) {
-            return primaryColor.withOpacity(0.5);
+        trackColor: WidgetStateProperty.resolveWith<Color>((states) {
+          if (states.contains(WidgetState.selected)) {
+            return primaryColor.withValues(alpha: (255 * 0.5).round());
           }
           return gray300;
         }),
@@ -224,7 +226,7 @@ class AppTheme {
     );
   }
   
-  // Get the dark theme (if needed)
+  // Get the dark theme (si nécessaire)
   static ThemeData get darkTheme {
     // Implement dark theme if needed
     return lightTheme;

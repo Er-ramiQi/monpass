@@ -36,14 +36,14 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
       final user = _authService.currentUser;
       if (user != null) {
         Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => OtpVerificationScreen(
-              user: user,
-              isRegistration: true,
-            ),
-          ),
-        );
+  context, 
+  MaterialPageRoute(
+    builder: (context) => OtpVerificationScreen(
+      isSetup: true,
+      phoneNumber: null, // Optionnel selon votre implémentation
+    ),
+  ),
+);
       }
     } else {
       // Désactiver 2FA
