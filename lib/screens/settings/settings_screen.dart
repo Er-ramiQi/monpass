@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:monpass/services/auth_service.dart';
 import 'package:monpass/services/user_service.dart';
+import 'package:monpass/screens/settings/security_settings_screen.dart';
 import 'package:monpass/screens/auth/login_screen.dart';
 
 class SettingsScreen extends StatefulWidget {

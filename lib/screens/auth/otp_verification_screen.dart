@@ -4,17 +4,19 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 import 'package:monpass/services/phone_auth_service.dart';
 import 'package:monpass/services/user_service.dart';
+import 'package:monpass/services/auth_service.dart'; // Assurez-vous que cette ligne est présente
 import 'package:monpass/screens/home/home_screen.dart';
+import '../password/password_list_screen.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
   final bool isSetup; // true si configuration 2FA, false si vérification
   final String? phoneNumber; // Numéro de téléphone pré-rempli si disponible
   
   const OtpVerificationScreen({
-    super.key,
+    Key? key,
     this.isSetup = false,
     this.phoneNumber,
-  });
+  }) : super(key: key);
 
   @override
   _OtpVerificationScreenState createState() => _OtpVerificationScreenState();
@@ -23,6 +25,7 @@ class OtpVerificationScreen extends StatefulWidget {
 class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   final PhoneAuthService _phoneAuthService = PhoneAuthService();
   final UserService _userService = UserService();
+  final AuthService _authService = AuthService(); // Cette ligne est nécessaire
   
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _otpController = TextEditingController();
@@ -63,8 +66,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
   
   bool _isValidPhoneNumber(String phone) {
-    // Validation basique du téléphone - au moins 10 chiffres
-    return phone.replaceAll(RegExp(r'[^0-9]'), '').length >= 10;
+    // Format international sans le "+"
+    return phone.replaceAll(RegExp(r'[^0-9]'), '').length >= 8;
   }
 
   // Démarrer le compte à rebours pour le renvoi d'OTP
@@ -88,7 +91,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     });
   }
   
-  // Envoyer OTP au numéro de téléphone
+  // Envoyer OTP au numéro de téléphone via WhatsApp
   Future<void> _sendOtp() async {
     if (!_formKey.currentState!.validate()) return;
     
@@ -99,13 +102,23 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     
     String phoneNumber = _phoneController.text.trim();
     
+    // Assurez-vous que le numéro commence par le code pays pour le Maroc
+    if (!phoneNumber.startsWith('+')) {
+      if (phoneNumber.startsWith('0')) {
+        phoneNumber = '+212' + phoneNumber.substring(1);
+      } else if (!phoneNumber.startsWith('212')) {
+        phoneNumber = '+212' + phoneNumber;
+      } else {
+        phoneNumber = '+' + phoneNumber;
+      }
+    }
+    
     try {
       String? verificationId = await _phoneAuthService.sendOtp(
         phoneNumber: phoneNumber,
         onVerificationCompleted: (credential) async {
-          // Auto-vérification (disponible uniquement sur Android)
-          _otpController.text = credential.smsCode ?? '';
-          _verifyOtp();
+          // Auto-vérification (fonctionnalité non disponible pour WhatsApp)
+          // Mais gardée pour compatibilité API
         },
         onVerificationFailed: (e) {
           String errorMessage;
@@ -120,7 +133,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               errorMessage = 'Quota dépassé. Veuillez réessayer plus tard.';
               break;
             case 'twilio-error':
-              errorMessage = 'Erreur d\'envoi SMS. Veuillez réessayer.';
+              errorMessage = 'Erreur d\'envoi WhatsApp. Veuillez réessayer.';
               break;
             default:
               errorMessage = 'Une erreur s\'est produite: ${e.message}';
@@ -156,7 +169,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
   
   // Vérifier le code OTP
-  Future<void> _verifyOtp() async {
+   Future<void> _verifyOtp() async {
     if (_otpController.text.length < 6) {
       setState(() {
         _errorMessage = 'Veuillez entrer le code complet à 6 chiffres';
@@ -175,8 +188,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         smsCode: _otpController.text.trim(),
       );
       
-      // La vérification a réussi même si userCredential est null
-      // car notre service Twilio modifié retourne null même en cas de succès
+      // Marquer que la 2FA a été vérifiée avec succès
+      await _authService.set2FAVerified();
       
       if (widget.isSetup) {
         // Activer 2FA dans le profil utilisateur
@@ -184,8 +197,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       }
       
       if (mounted) {
+        // Rediriger vers la liste des mots de passe après vérification 2FA
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => HomeScreen()),
+          MaterialPageRoute(builder: (context) => PasswordListScreen()),
           (route) => false,
         );
       }
@@ -200,7 +214,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       });
     }
   }
-  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -239,7 +252,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                   Text(
                     _codeSent 
                         ? 'Entrez le code de vérification'
-                        : 'Vérification par SMS',
+                        : 'Vérification par WhatsApp',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -253,8 +266,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                   // Subtitle
                   Text(
                     _codeSent
-                        ? 'Nous avons envoyé un code à ${_phoneController.text}'
-                        : 'Saisissez votre numéro de téléphone pour recevoir un code de vérification',
+                        ? 'Nous avons envoyé un code WhatsApp à ${_phoneController.text}'
+                        : 'Saisissez votre numéro de téléphone pour recevoir un code via WhatsApp',
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.grey[600],
@@ -299,8 +312,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       controller: _phoneController,
                       keyboardType: TextInputType.phone,
                       decoration: InputDecoration(
-                        labelText: 'Numéro de téléphone',
-                        hintText: '(123) 456-7890',
+                        labelText: 'Numéro WhatsApp',
+                        hintText: '06XXXXXXXX ou +212XXXXXXXX',
                         prefixIcon: Icon(Icons.phone, color: Theme.of(context).primaryColor),
                         filled: true,
                         fillColor: Colors.grey[100],
@@ -330,6 +343,30 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                         }
                         return null;
                       },
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    // Note WhatsApp
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.green),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Assurez-vous que ce numéro est actif sur WhatsApp.',
+                              style: TextStyle(color: Colors.green[800]),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ] else ...[
                     // PIN code field
@@ -452,26 +489,27 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                   ],
                   
                   // Skip for now (only in verification mode, not setup)
-                  if (!widget.isSetup && !_codeSent) ...[
-                    const SizedBox(height: 16),
-                    Center(
-                      child: TextButton(
-                        onPressed: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(builder: (context) => HomeScreen()),
-                          );
-                        },
-                        child: Text(
-                          'Ignorer pour cette fois',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.normal,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+if (!widget.isSetup && !_codeSent) ...[
+  const SizedBox(height: 16),
+  Center(
+    child: TextButton(
+      onPressed: () {
+        // Rediriger vers la liste des mots de passe
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => PasswordListScreen()),
+        );
+      },
+      child: Text(
+        'Ignorer pour cette fois',
+        style: TextStyle(
+          color: Colors.grey[600],
+          fontWeight: FontWeight.normal,
+        ),
+      ),
+    ),
+  ),
+],
                 ],
               ),
             ),

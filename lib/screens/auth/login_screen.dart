@@ -6,6 +6,7 @@ import '../../services/auth_service.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 import '../password/password_list_screen.dart';
+import 'otp_verification_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -99,10 +100,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
   
   Future<void> _signIn() async {
-    // Enlever le focus pour fermer le clavier
-    _emailFocus.unfocus();
-    _passwordFocus.unfocus();
-    
     if (!_formKey.currentState!.validate()) return;
     
     setState(() {
@@ -111,22 +108,40 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     });
     
     try {
+      // Connecter l'utilisateur
       await _authService.signInWithEmailPassword(
         _emailController.text.trim(),
         _passwordController.text,
       );
       
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PasswordListScreen(),
-          ),
-        );
+      // Vérifier si la 2FA est activée
+      bool is2FAEnabled = await _authService.is2FAEnabled();
+      
+      if (is2FAEnabled) {
+        // Rediriger vers l'écran de vérification 2FA
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => OtpVerificationScreen(isSetup: false),
+            ),
+          );
+        }
+      } else {
+        // Marquer que la 2FA est vérifiée (car elle n'est pas activée)
+        await _authService.set2FAVerified();
+        
+        // Rediriger vers l'écran principal
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PasswordListScreen(),
+            ),
+          );
+        }
       }
     } catch (e) {
-      if (!mounted) return;
-      
       setState(() {
         _isLoading = false;
         _errorMessage = _getErrorMessage(e);

@@ -6,14 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class TwilioService {
   // Constantes Twilio - REMPLACEZ PAR VOS CREDENTIALS
-  static const String _accountSid = 'AC9f8ecedbea3cb10855a19505c8123326';
-  static const String _authToken = 'VOTRE_AUTH_TOKEN';
-  static const String _twilioNumber = '+14155238886';
-  
-  // Clé pour stockage local du code OTP
-  static const String _otpStorageKey = 'otp_verification_code';
-  static const String _otpPhoneKey = '+212703687923';
-  
+  //...
   // Instance Twilio
   late TwilioFlutter _twilioFlutter;
   

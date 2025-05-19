@@ -7,11 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class TwilioWhatsAppService {
   // Constantes Twilio - UTILISANT VOS CREDENTIALS
-  static const String _accountSid = "AC9f8ecedbea3cb10855a19505c8123326";
-  static const String _authToken = "126fc97cc271bbd58ae757fd45db8c8c";
-  static const String _fromWhatsApp = "+14155238886"; // Numéro WhatsApp de Twilio
-  static const String _templateSid = "HX229f5a04fd0510ce1b071852155d3e75"; // ID du template
-  
+ //....
   // Clés pour stockage local du code OTP
   static const String _otpStorageKey = 'otp_verification_code';
   static const String _otpPhoneKey = 'otp_verification_phone';
