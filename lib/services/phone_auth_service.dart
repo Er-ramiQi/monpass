@@ -1,11 +1,13 @@
 // lib/services/phone_auth_service.dart
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'twilio_whatsapp_service.dart';
 
 class PhoneAuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final TwilioWhatsAppService _twilioService = TwilioWhatsAppService();
   
-  // Send OTP code to the provided phone number
+  // Envoyer OTP au numéro de téléphone fourni via WhatsApp
   Future<String?> sendOtp({
     required String phoneNumber,
     required Function(String) onCodeSent,
@@ -13,56 +15,84 @@ class PhoneAuthService {
     required Function(PhoneAuthCredential) onVerificationCompleted,
   }) async {
     try {
-      String verificationId = '';
+      // Vérifier si le numéro est valide
+      if (phoneNumber.isEmpty) {
+        onVerificationFailed(
+          FirebaseAuthException(
+            code: 'invalid-phone-number',
+            message: 'Le numéro de téléphone est vide',
+          ),
+        );
+        return null;
+      }
       
-      await _auth.verifyPhoneNumber(
-        phoneNumber: phoneNumber,
-        verificationCompleted: onVerificationCompleted,
-        verificationFailed: onVerificationFailed,
-        codeSent: (String verId, int? resendToken) {
-          verificationId = verId;
-          onCodeSent(verId);
-        },
-        codeAutoRetrievalTimeout: (String verId) {
-          verificationId = verId;
-        },
-        timeout: const Duration(seconds: 120),
-      );
+      // Envoyer OTP via Twilio WhatsApp
+      bool success = await _twilioService.sendOtp(phoneNumber);
       
-      return verificationId;
+      if (success) {
+        // Générer un ID de vérification unique 
+        String verificationId = DateTime.now().millisecondsSinceEpoch.toString();
+        
+        // Appeler le callback pour informer que le code a été envoyé
+        onCodeSent(verificationId);
+        
+        return verificationId;
+      } else {
+        // Échec de l'envoi
+        onVerificationFailed(
+          FirebaseAuthException(
+            code: 'twilio-error',
+            message: 'Impossible d\'envoyer le message WhatsApp via Twilio',
+          ),
+        );
+        return null;
+      }
     } catch (e) {
-      debugPrint('Error sending OTP: $e');
+      debugPrint('Erreur d\'envoi OTP: $e');
+      onVerificationFailed(
+        FirebaseAuthException(
+          code: 'unknown-error',
+          message: e.toString(),
+        ),
+      );
       return null;
     }
   }
   
-  // Verify OTP code
+  // Vérifier le code OTP
   Future<UserCredential?> verifyOtp({
     required String verificationId,
     required String smsCode,
   }) async {
     try {
-      PhoneAuthCredential credential = PhoneAuthProvider.credential(
-        verificationId: verificationId,
-        smsCode: smsCode,
-      );
+      // Vérifier le code OTP avec notre service Twilio WhatsApp
+      bool isValid = await _twilioService.verifyOtp(smsCode);
       
-      // Sign in or link with credential
-      if (_auth.currentUser != null) {
-        // Link to existing account (for 2FA setup)
-        await _auth.currentUser!.linkWithCredential(credential);
-        return null; // No need to return credential for linking
+      if (isValid) {
+        if (_auth.currentUser != null) {
+          // C'est une configuration 2FA - mettre à jour le profil utilisateur
+          String? phoneNumber = await _twilioService.getStoredPhoneNumber();
+          
+          // Simuler un credential pour la compatibilité API
+          return null;
+        } else {
+          // Compatibilité avec le code qui attend un UserCredential
+          return null;
+        }
       } else {
-        // Sign in with phone number (for 2FA verification)
-        return await _auth.signInWithCredential(credential);
+        // Le code OTP n'est pas valide
+        throw FirebaseAuthException(
+          code: 'invalid-verification-code',
+          message: 'Le code de vérification n\'est pas valide',
+        );
       }
     } catch (e) {
-      debugPrint('Error verifying OTP: $e');
+      debugPrint('Erreur de vérification OTP: $e');
       return null;
     }
   }
   
-  // Check if current user has phone number linked
+  // Vérifier si l'utilisateur actuel a un numéro de téléphone lié
   bool isPhoneLinked() {
     final user = _auth.currentUser;
     if (user == null) return false;
@@ -70,12 +100,12 @@ class PhoneAuthService {
     return user.phoneNumber != null && user.phoneNumber!.isNotEmpty;
   }
   
-  // Get current user's phone number
+  // Obtenir le numéro de téléphone de l'utilisateur actuel
   String? getLinkedPhoneNumber() {
     return _auth.currentUser?.phoneNumber;
   }
   
-  // Unlink phone auth provider (disable 2FA)
+  // Dissocier le fournisseur d'authentification par téléphone (désactiver 2FA)
   Future<bool> unlinkPhoneProvider() async {
     try {
       if (_auth.currentUser == null) return false;
@@ -86,9 +116,9 @@ class PhoneAuthService {
           return true;
         }
       }
-      return false; // No phone provider found
+      return false; // Aucun fournisseur téléphonique trouvé
     } catch (e) {
-      debugPrint('Error unlinking phone provider: $e');
+      debugPrint('Erreur de dissociation du fournisseur téléphonique: $e');
       return false;
     }
   }

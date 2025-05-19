@@ -12,9 +12,9 @@ class PasswordDetailScreen extends StatefulWidget {
   final PasswordModel password;
   
   const PasswordDetailScreen({
-    Key? key,
+    super.key,
     required this.password,
-  }) : super(key: key);
+  });
 
   @override
   _PasswordDetailScreenState createState() => _PasswordDetailScreenState();
@@ -127,50 +127,55 @@ class _PasswordDetailScreenState extends State<PasswordDetailScreen> with Single
     }
   }
   
-  Future<void> _deletePassword() async {
-    try {
-      bool? confirm = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Confirmer la suppression'),
-          content: Text('Voulez-vous vraiment supprimer "${_password.title}"?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text('Annuler'),
+  // Modifier la partie de navigation dans _deletePassword pour indiquer des modifications
+Future<void> _deletePassword() async {
+  try {
+    bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Confirmer la suppression'),
+        content: Text('Voulez-vous vraiment supprimer "${_password.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.errorColor,
+              foregroundColor: Colors.white,
             ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.errorColor,
-                foregroundColor: Colors.white,
-              ),
-              child: Text('Supprimer'),
-            ),
-          ],
-        ),
-      );
+            child: Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirm == true) {
+      setState(() {
+        _isLoading = true;
+      });
       
-      if (confirm == true) {
+      bool success = await _passwordService.deletePassword(_password.id);
+      
+      if (success) {
+        // Retourner true pour indiquer une modification
+        Navigator.pop(context, true);
+      } else {
+        _showErrorSnackBar('Erreur lors de la suppression');
         setState(() {
-          _isLoading = true;
+          _isLoading = false;
         });
-        
-        bool success = await _passwordService.deletePassword(_password.id);
-        
-        if (success) {
-          Navigator.pop(context, true); // Vrai indique que des modifications ont été apportées
-        } else {
-          _showErrorSnackBar('Erreur lors de la suppression');
-          setState(() {
-            _isLoading = false;
-          });
-        }
       }
-    } catch (e) {
-      _showErrorSnackBar('Erreur lors de la suppression');
     }
+  } catch (e) {
+    _showErrorSnackBar('Erreur lors de la suppression');
+    setState(() {
+      _isLoading = false;
+    });
   }
+}
   
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(

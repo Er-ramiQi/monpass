@@ -5,7 +5,7 @@ import 'package:monpass/screens/profile/profile_screen.dart';
 import 'package:monpass/screens/settings/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   _HomeScreenState createState() => _HomeScreenState();

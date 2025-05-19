@@ -13,7 +13,7 @@ import 'password_generator_screen.dart';
 import '../settings/settings_screen.dart';
 
 class PasswordListScreen extends StatefulWidget {
-  const PasswordListScreen({Key? key}) : super(key: key);
+  const PasswordListScreen({super.key});
 
   @override
   _PasswordListScreenState createState() => _PasswordListScreenState();
@@ -509,7 +509,6 @@ class _PasswordListScreenState extends State<PasswordListScreen> with SingleTick
               ],
             ),
       floatingActionButton: FloatingActionButton(
-        child: Icon(Icons.add),
         tooltip: 'Ajouter un mot de passe',
         onPressed: () async {
           final result = await Navigator.push(
@@ -522,6 +521,7 @@ class _PasswordListScreenState extends State<PasswordListScreen> with SingleTick
             _loadPasswords();
           }
         },
+        child: Icon(Icons.add),
       ),
     );
   }

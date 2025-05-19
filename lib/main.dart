@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'services/auth_service.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/password/password_list_screen.dart';
@@ -19,6 +20,16 @@ void main() async {
   // Initialize Firebase
   await Firebase.initializeApp();
   
+  // Configure Firebase Auth pour le développement
+  // REMARQUE: Décommenter ce bloc uniquement pour le développement local
+  /* 
+  await FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
+  // Désactiver les vérifications de sécurité pendant le développement
+  FirebaseAuth.instance.setSettings(
+    appVerificationDisabledForTesting: true,
+  );
+  */
+  
   // Set status bar color
   SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
@@ -30,6 +41,8 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -42,6 +55,8 @@ class MyApp extends StatelessWidget {
 }
 
 class AuthWrapper extends StatefulWidget {
+  const AuthWrapper({super.key});
+
   @override
   State<AuthWrapper> createState() => _AuthWrapperState();
 }
@@ -111,7 +126,7 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withValues(alpha: 26.0),
                         blurRadius: 10,
                         offset: Offset(0, 4),
                       ),
@@ -137,7 +152,7 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
                   'Gestionnaire de mots de passe sécurisé',
                   style: TextStyle(
                     fontSize: 16,
-                    color: Colors.white.withOpacity(0.8),
+                    color: Colors.white.withValues(alpha: 204.0),
                   ),
                 ),
                 const SizedBox(height: 48),

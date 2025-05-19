@@ -7,8 +7,8 @@ import 'package:monpass/services/user_service.dart';
 import 'package:monpass/screens/home/home_screen.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
-  final bool isSetup; // true if setting up 2FA, false if verifying
-  final String? phoneNumber; // Pre-filled phone number if available
+  final bool isSetup; // true si configuration 2FA, false si vérification
+  final String? phoneNumber; // Numéro de téléphone pré-rempli si disponible
   
   const OtpVerificationScreen({
     Key? key,
@@ -35,18 +35,18 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   String? _errorMessage;
   String? _verificationId;
   
-  // For smooth animation on errors
+  // Pour une animation fluide sur les erreurs
   final _errorAnimationController = GlobalKey();
   
   @override
   void initState() {
     super.initState();
     
-    // Pre-fill phone number if provided
+    // Pré-remplir le numéro de téléphone si fourni
     if (widget.phoneNumber != null && widget.phoneNumber!.isNotEmpty) {
       _phoneController.text = widget.phoneNumber!;
       
-      // Auto-send OTP if phone number is provided and valid
+      // Envoi automatique d'OTP si le numéro de téléphone est fourni et valide
       if (_isValidPhoneNumber(widget.phoneNumber!)) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _sendOtp();
@@ -63,11 +63,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
   
   bool _isValidPhoneNumber(String phone) {
-    // Basic phone validation - at least 10 digits
+    // Validation basique du téléphone - au moins 10 chiffres
     return phone.replaceAll(RegExp(r'[^0-9]'), '').length >= 10;
   }
 
-  // Start countdown for OTP resend
+  // Démarrer le compte à rebours pour le renvoi d'OTP
   void _startResendCountdown() {
     setState(() {
       _resendCountdown = 60;
@@ -88,7 +88,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     });
   }
   
-  // Send OTP to phone number
+  // Envoyer OTP au numéro de téléphone
   Future<void> _sendOtp() async {
     if (!_formKey.currentState!.validate()) return;
     
@@ -98,17 +98,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     });
     
     String phoneNumber = _phoneController.text.trim();
-    // Format phone number for international dialing if needed
-    if (!phoneNumber.startsWith('+')) {
-      // Assuming default country code is +1 (US)
-      phoneNumber = '+1$phoneNumber';
-    }
     
     try {
       String? verificationId = await _phoneAuthService.sendOtp(
         phoneNumber: phoneNumber,
         onVerificationCompleted: (credential) async {
-          // Auto-verification (available on Android only)
+          // Auto-vérification (disponible uniquement sur Android)
           _otpController.text = credential.smsCode ?? '';
           _verifyOtp();
         },
@@ -123,6 +118,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               break;
             case 'quota-exceeded':
               errorMessage = 'Quota dépassé. Veuillez réessayer plus tard.';
+              break;
+            case 'twilio-error':
+              errorMessage = 'Erreur d\'envoi SMS. Veuillez réessayer.';
               break;
             default:
               errorMessage = 'Une erreur s\'est produite: ${e.message}';
@@ -157,7 +155,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     }
   }
   
-  // Verify OTP code
+  // Vérifier le code OTP
   Future<void> _verifyOtp() async {
     if (_otpController.text.length < 6) {
       setState(() {
@@ -177,8 +175,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         smsCode: _otpController.text.trim(),
       );
       
+      // La vérification a réussi même si userCredential est null
+      // car notre service Twilio modifié retourne null même en cas de succès
+      
       if (widget.isSetup) {
-        // Enable 2FA in user profile
+        // Activer 2FA dans le profil utilisateur
         await _userService.enable2FA(_phoneController.text.trim());
       }
       

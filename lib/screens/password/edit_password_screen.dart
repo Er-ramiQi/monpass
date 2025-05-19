@@ -9,9 +9,9 @@ class EditPasswordScreen extends StatefulWidget {
   final PasswordModel password;
   
   const EditPasswordScreen({
-    Key? key,
+    super.key,
     required this.password,
-  }) : super(key: key);
+  });
 
   @override
   _EditPasswordScreenState createState() => _EditPasswordScreenState();
@@ -300,9 +300,9 @@ class _PasswordGeneratorSheet extends StatefulWidget {
   final Function(String) onGenerated;
   
   const _PasswordGeneratorSheet({
-    Key? key,
+    super.key,
     required this.onGenerated,
-  }) : super(key: key);
+  });
 
   @override
   __PasswordGeneratorSheetState createState() => __PasswordGeneratorSheetState();

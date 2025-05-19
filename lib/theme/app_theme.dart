@@ -1,7 +1,7 @@
 // lib/theme/app_theme.dart
+// lib/theme/app_theme.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart' show WidgetStateProperty, WidgetState;
-import 'package:google_fonts/google_fonts.dart';
+import 'package:google_fonts/google_fonts.dart'; // Ajout de cet import
 
 class AppTheme {
   // Primary and accent colors
@@ -32,7 +32,7 @@ class AppTheme {
     return ThemeData(
       // Colors
       primaryColor: primaryColor,
-      primarySwatch: MaterialColor(primaryColor.value, {
+      primarySwatch: MaterialColor(primaryColor.toARGB32(), {
         50: accentColor,
         100: Color(0xFF64B5F6),
         200: Color(0xFF42A5F5),
@@ -47,9 +47,6 @@ class AppTheme {
       colorScheme: ColorScheme.light(
         primary: primaryColor,
         secondary: secondaryColor,
-        surface: Colors.white,
-        // Utiliser surface au lieu de background (déprécié)
-        // onSurface au lieu de onBackground (déprécié)
         surface: gray50,
         error: errorColor,
         onPrimary: Colors.white,
@@ -144,7 +141,7 @@ class AppTheme {
           borderRadius: BorderRadius.circular(16),
         ),
         color: Colors.white,
-        shadowColor: Colors.black.withValues(alpha: (255 * 0.1).round()),
+        shadowColor: Colors.black.withValues(alpha: 26.0), // Corrigé: 255 * 0.1 ≈ 26
       ),
       
       // Snackbar
@@ -206,7 +203,7 @@ class AppTheme {
         }),
         trackColor: WidgetStateProperty.resolveWith<Color>((states) {
           if (states.contains(WidgetState.selected)) {
-            return primaryColor.withValues(alpha: (255 * 0.5).round());
+            return primaryColor.withValues(alpha: 128.0); // Corrigé: 255 * 0.5 = 128
           }
           return gray300;
         }),

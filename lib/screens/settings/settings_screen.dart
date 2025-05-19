@@ -5,7 +5,7 @@ import 'package:monpass/screens/settings/security_settings_screen.dart';
 import 'package:monpass/screens/auth/login_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({Key? key}) : super(key: key);
+  const SettingsScreen({super.key});
 
   @override
   _SettingsScreenState createState() => _SettingsScreenState();

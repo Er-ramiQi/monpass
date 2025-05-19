@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart'; // Ajout de cet import pour debugPrint
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:crypto/crypto.dart';
 
@@ -69,7 +70,7 @@ class SecureStorageService {
       await _secureStorage.write(key: key, value: encryptedData);
       return true;
     } catch (e) {
-      print('Error writing encrypted data: $e');
+      debugPrint('Error writing encrypted data: $e');
       return false;
     }
   }
@@ -89,7 +90,7 @@ class SecureStorageService {
       
       return jsonDecode(decryptedData) as Map<String, dynamic>;
     } catch (e) {
-      print('Error reading encrypted data: $e');
+      debugPrint('Error reading encrypted data: $e');
       return null;
     }
   }

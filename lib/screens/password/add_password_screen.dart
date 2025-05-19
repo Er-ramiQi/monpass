@@ -7,7 +7,7 @@ import '../../services/password_service.dart';
 import '../../services/secure_storage_service.dart';
 
 class AddPasswordScreen extends StatefulWidget {
-  const AddPasswordScreen({Key? key}) : super(key: key);
+  const AddPasswordScreen({super.key});
 
   @override
   _AddPasswordScreenState createState() => _AddPasswordScreenState();
@@ -274,9 +274,9 @@ class _PasswordGeneratorSheet extends StatefulWidget {
   final Function(String) onGenerated;
   
   const _PasswordGeneratorSheet({
-    Key? key,
+    super.key,
     required this.onGenerated,
-  }) : super(key: key);
+  });
 
   @override
   __PasswordGeneratorSheetState createState() => __PasswordGeneratorSheetState();
