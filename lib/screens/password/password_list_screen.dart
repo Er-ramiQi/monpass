@@ -615,18 +615,129 @@ class _PasswordListScreenState extends State<PasswordListScreen> with SingleTick
       ),
     );
   }
-  
+  Widget _buildPasswordList() {
+  return ListView.builder(
+    itemCount: _filteredPasswords.length,
+    itemBuilder: (context, index) {
+      final password = _filteredPasswords[index];
+      // Utiliser Dismissible pour les actions swipe
+      return Dismissible(
+        key: Key(password.id),
+        // Swipe gauche -> supprimer
+        background: Container(
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.only(left: 20),
+          color: AppTheme.errorColor,
+          child: Row(
+            children: const [
+              Icon(Icons.delete, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Supprimer', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+        // Swipe droit -> favori
+        secondaryBackground: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 20),
+          color: password.isFavorite ? Colors.grey : Colors.amber,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Text(
+                password.isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris', 
+                style: const TextStyle(color: Colors.white),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                password.isFavorite ? Icons.star_border : Icons.star, 
+                color: Colors.white,
+              ),
+            ],
+          ),
+        ),
+        // Confirmer suppression
+        confirmDismiss: (direction) async {
+          if (direction == DismissDirection.startToEnd) {
+            // Demander confirmation pour suppression
+            return await _confirmDeleteDialog(password);
+          } else {
+            // Pour les favoris, pas besoin de confirmation
+            await _toggleFavorite(password);
+            return false; // Ne pas supprimer l'élément de la liste
+          }
+        },
+        // Action à effectuer après confirmation
+        onDismissed: (direction) {
+          if (direction == DismissDirection.startToEnd) {
+            _deletePassword(password);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Mot de passe supprimé'),
+                action: SnackBarAction(
+                  label: 'Annuler',
+                  onPressed: () {
+                    // Récupérer le mot de passe
+                    _loadPasswords();
+                  },
+                ),
+              ),
+            );
+          }
+        },
+        child: _buildPasswordCard(password),
+      );
+    },
+  );
+}
+
+// Boite de dialogue de confirmation
+Future<bool> _confirmDeleteDialog(PasswordModel password) async {
+  return await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Supprimer le mot de passe'),
+      content: Text('Voulez-vous vraiment supprimer "${password.title}"? Cette action ne peut pas être annulée.'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Annuler'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.errorColor,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Supprimer'),
+        ),
+      ],
+    ),
+  ) ?? false;
+}
   Widget _buildPasswordCard(PasswordModel password) {
-    String subtitle = password.username;
-    if (password.website.isNotEmpty) {
-      subtitle += ' • ${password.website}';
-    }
-    
-    return Card(
+  // Modification: ajouter de la semantics pour l'accessibilité
+  return Semantics(
+    label: 'Mot de passe pour ${password.title}',
+    hint: 'Balayez vers la gauche pour mettre en favori, vers la droite pour supprimer',
+    button: true,
+    onTap: () async {
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PasswordDetailScreen(password: password),
+        ),
+      );
+      if (result == true) {
+        _loadPasswords();
+      }
+    },
+    child: Card(
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () async {
@@ -641,42 +752,60 @@ class _PasswordListScreenState extends State<PasswordListScreen> with SingleTick
           }
         },
         child: Padding(
-          padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.all(16.0),
           child: Row(
             children: [
               // Category icon
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: _getCategoryColor(password).withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  _getCategoryIcon(password),
-                  color: _getCategoryColor(password),
-                  size: 24,
+              Hero(
+                tag: 'icon_${password.id}',
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: _getCategoryColor(password).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _getCategoryIcon(password),
+                    color: _getCategoryColor(password),
+                    size: 24,
+                  ),
                 ),
               ),
-              SizedBox(width: 12),
+              SizedBox(width: 16),
               
               // Password info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      password.title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            password.title,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (password.isFavorite)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8.0),
+                            child: Icon(
+                              Icons.star,
+                              color: Colors.amber,
+                              size: 18,
+                            ),
+                          ),
+                      ],
                     ),
                     SizedBox(height: 4),
                     Text(
-                      subtitle,
+                      password.username,
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey[600],
@@ -684,57 +813,36 @@ class _PasswordListScreenState extends State<PasswordListScreen> with SingleTick
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.access_time,
-                          size: 12,
+                    if (password.website.isNotEmpty) ...[
+                      SizedBox(height: 2),
+                      Text(
+                        password.website,
+                        style: TextStyle(
+                          fontSize: 12,
                           color: Colors.grey[500],
                         ),
-                        SizedBox(width: 4),
-                        Text(
-                          _formatDate(password.updatedAt),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[500],
-                          ),
-                        ),
-                      ],
-                    ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ],
                 ),
               ),
               
-              // Action buttons
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      password.isFavorite ? Icons.star : Icons.star_border,
-                      color: password.isFavorite ? Colors.amber : Colors.grey[400],
-                    ),
-                    iconSize: 22,
-                    splashRadius: 24,
-                    tooltip: password.isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
-                    onPressed: () => _toggleFavorite(password),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.content_copy, color: AppTheme.primaryColor),
-                    iconSize: 22,
-                    splashRadius: 24,
-                    tooltip: 'Copier le mot de passe',
-                    onPressed: () => _copyToClipboard(password.password, 'Mot de passe'),
-                  ),
-                ],
+              // Action button
+              IconButton(
+                icon: const Icon(Icons.content_copy),
+                tooltip: 'Copier le mot de passe',
+                iconSize: 20,
+                onPressed: () => _copyToClipboard(password.password, 'Mot de passe'),
               ),
             ],
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
   
   Color _getCategoryColor(PasswordModel password) {
     if (password.title.toLowerCase().contains('bank') || 

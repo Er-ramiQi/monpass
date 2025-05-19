@@ -13,6 +13,39 @@ class UserService {
   // Firebase Auth
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  // Créer un profil utilisateur initial après l'inscription
+  Future<bool> createInitialProfile(User user) async {
+    try {
+      // Création du profil utilisateur par défaut
+      Map<String, dynamic> defaultProfile = {
+        'email': user.email ?? '',
+        'displayName': user.displayName ?? 'Utilisateur',
+        'phoneNumber': user.phoneNumber ?? '',
+        'photoURL': user.photoURL,
+        'createdAt': DateTime.now().millisecondsSinceEpoch,
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
+        'is2FAEnabled': false,
+        'securityScore': 50, // Score initial
+        'lastPasswordChange': DateTime.now().millisecondsSinceEpoch,
+      };
+      
+      // Stockage du profil
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_userProfileKey, jsonEncode(defaultProfile));
+      
+      // Stocker l'ID de l'utilisateur pour référence future
+      await prefs.setString('user_id', user.uid);
+      
+      // Initialiser les paramètres de sécurité par défaut
+      await prefs.setBool(_is2FAEnabledKey, false);
+      
+      return true;
+    } catch (e) {
+      debugPrint('Error creating initial profile: $e');
+      return false;
+    }
+  }
+
   // Get user profile from local storage
   Future<Map<String, dynamic>?> getUserProfile() async {
     try {
@@ -23,18 +56,21 @@ class UserService {
         // Create default profile if none exists
         User? currentUser = _auth.currentUser;
         
-        Map<String, dynamic> defaultProfile = {
-          'email': currentUser?.email ?? '',
-          'displayName': currentUser?.displayName ?? 'Utilisateur',
-          'phoneNumber': currentUser?.phoneNumber ?? await getSavedPhoneNumber() ?? '',
-          'photoURL': currentUser?.photoURL,
-          'createdAt': DateTime.now().millisecondsSinceEpoch,
-          'is2FAEnabled': await is2FAEnabled(),
-          'lastUpdated': DateTime.now().millisecondsSinceEpoch,
-        };
+        if (currentUser == null) {
+          return null;
+        }
         
-        await saveUserProfile(defaultProfile);
-        return defaultProfile;
+        // Créer un profil par défaut
+        bool created = await createInitialProfile(currentUser);
+        if (!created) {
+          return null;
+        }
+        
+        // Relire le profil nouvellement créé
+        profileJson = prefs.getString(_userProfileKey);
+        if (profileJson == null) {
+          return null;
+        }
       }
       
       Map<String, dynamic> profile = jsonDecode(profileJson) as Map<String, dynamic>;
@@ -101,7 +137,7 @@ class UserService {
         currentProfile.addAll(data);
         
         // Update last modified date
-        currentProfile['lastUpdated'] = DateTime.now().millisecondsSinceEpoch;
+        currentProfile['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
         
         // Sync with Firebase if possible
         User? currentUser = _auth.currentUser;
