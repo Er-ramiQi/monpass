@@ -22,18 +22,27 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
   
   bool _isLoading = false;
   bool _is2FAEnabled = false;
+  String? _phoneNumber;
 
   @override
   void initState() {
     super.initState();
     _is2FAEnabled = widget.is2FAEnabled;
+    _loadPhoneNumber();
+  }
+  
+  Future<void> _loadPhoneNumber() async {
+    String? phone = await _userService.getSavedPhoneNumber();
+    setState(() {
+      _phoneNumber = phone;
+    });
   }
 
   Future<void> _toggle2FA(bool value) async {
     if (value == _is2FAEnabled) return;
     
     if (value) {
-      // Activer 2FA
+      // Enable 2FA
       final user = _authService.currentUser;
       if (user != null) {
         Navigator.push(
@@ -41,15 +50,25 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
           MaterialPageRoute(
             builder: (context) => OtpVerificationScreen(
               isSetup: true,
-              phoneNumber: null, // Optionnel selon votre implémentation
+              phoneNumber: _phoneNumber,
             ),
           ),
-        );
+        ).then((result) {
+          // Refresh 2FA status when returning from OTP screen
+          _checkStatus();
+        });
       }
     } else {
-      // Désactiver 2FA
+      // Disable 2FA
       _showDisable2FADialog();
     }
+  }
+  
+  Future<void> _checkStatus() async {
+    bool status = await _userService.is2FAEnabled();
+    setState(() {
+      _is2FAEnabled = status;
+    });
   }
 
   Future<void> _disable2FA() async {
@@ -79,8 +98,8 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Désactiver l\'authentification à deux facteurs?'),
-        content: Text(
+        title: const Text('Désactiver l\'authentification à deux facteurs?'),
+        content: const Text(
           'Cela rendra votre compte moins sécurisé. Êtes-vous sûr de vouloir continuer?'
         ),
         actions: [
@@ -88,7 +107,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
             onPressed: () {
               Navigator.pop(context);
             },
-            child: Text('Annuler'),
+            child: const Text('Annuler'),
           ),
           ElevatedButton(
             onPressed: () {
@@ -99,7 +118,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: Text('Désactiver'),
+            child: const Text('Désactiver'),
           ),
         ],
       ),
@@ -110,16 +129,16 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Paramètres de sécurité'),
+        title: const Text('Paramètres de sécurité'),
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator())
           : Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Authentification à deux facteurs',
                     style: TextStyle(
                       fontSize: 20,
@@ -158,7 +177,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                                       _is2FAEnabled
                                           ? 'Authentification à deux facteurs activée'
                                           : 'Authentification à deux facteurs désactivée',
-                                      style: TextStyle(
+                                      style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 16,
                                       ),
@@ -173,6 +192,22 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                                         fontSize: 14,
                                       ),
                                     ),
+                                    if (_phoneNumber != null && _is2FAEnabled) ...[
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Icon(Icons.phone, size: 14, color: Colors.grey[600]),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Numéro associé: $_phoneNumber',
+                                            style: TextStyle(
+                                              color: Colors.grey[600],
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
@@ -180,7 +215,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                           ),
                           const SizedBox(height: 16),
                           SwitchListTile(
-                            title: Text(
+                            title: const Text(
                               'Activer l\'authentification à deux facteurs',
                               style: TextStyle(fontWeight: FontWeight.w500),
                             ),
@@ -195,7 +230,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                   
                   const SizedBox(height: 24),
                   
-                  // Information sur la 2FA
+                  // 2FA Information
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(

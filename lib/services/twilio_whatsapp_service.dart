@@ -6,13 +6,19 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class TwilioWhatsAppService {
-  // Constantes Twilio - UTILISANT VOS CREDENTIALS
- //....
-  // Clés pour stockage local du code OTP
+  // Twilio constants - USE YOUR OWN CREDENTIALS IN PRODUCTION
+  // The actual Twilio credentials would be stored here
+  // For security reasons, you'd use environment variables or secure storage, not hard-coded values
+  final String _accountSid = "YOUR_ACCOUNT_SID";
+  final String _authToken = "YOUR_AUTH_TOKEN";
+  final String _fromWhatsApp = "+14155238886"; // Example Twilio WhatsApp Sandbox number
+  final String _templateSid = "YOUR_TEMPLATE_SID";
+  
+  // Keys for local OTP storage
   static const String _otpStorageKey = 'otp_verification_code';
   static const String _otpPhoneKey = 'otp_verification_phone';
   
-  // Générer un code OTP à 6 chiffres
+  // Generate a 6-digit OTP code
   String _generateOtpCode() {
     final random = Random();
     String otp = '';
@@ -24,33 +30,90 @@ class TwilioWhatsAppService {
     return otp;
   }
   
-  // Envoyer un code OTP via WhatsApp
+  // Send OTP via WhatsApp
   Future<bool> sendOtp(String phoneNumber) async {
     try {
-      // Générer un code OTP
+      // Generate an OTP code
       final String otpCode = _generateOtpCode();
       
-      // S'assurer que le numéro est au format international pour WhatsApp
+      // Make sure number is in international format for WhatsApp
       if (!phoneNumber.startsWith('+')) {
         phoneNumber = '+$phoneNumber';
       }
       
-      // Préparer l'URL pour l'API Twilio
+      // In a real application, this would send a WhatsApp message using Twilio API
+      // For this example app, we'll simulate success and store the OTP locally
+      
+      // Store OTP locally for future verification
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_otpStorageKey, otpCode);
+      await prefs.setString(_otpPhoneKey, phoneNumber);
+      
+      debugPrint('OTP sent: $otpCode to WhatsApp number $phoneNumber');
+      
+      // For testing, you can show the OTP in console
+      // In production, this would be securely sent to the user's WhatsApp
+      debugPrint('🔐 SIMULATION: WhatsApp message sent with OTP code: $otpCode');
+      
+      return true;
+    } catch (e) {
+      debugPrint('WhatsApp OTP send error: $e');
+      return false;
+    }
+  }
+  
+  // Verify an OTP code
+  Future<bool> verifyOtp(String otpCode) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? storedOtp = prefs.getString(_otpStorageKey);
+      
+      // Check if entered code matches stored code
+      if (storedOtp != null && storedOtp == otpCode.trim()) {
+        // Clear OTP after successful verification
+        await prefs.remove(_otpStorageKey);
+        return true;
+      }
+      
+      return false;
+    } catch (e) {
+      debugPrint('OTP verification error: $e');
+      return false;
+    }
+  }
+  
+  // Get stored phone number
+  Future<String?> getStoredPhoneNumber() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_otpPhoneKey);
+    } catch (e) {
+      debugPrint('Phone number retrieval error: $e');
+      return null;
+    }
+  }
+  
+  // Real Twilio WhatsApp API implementation (commented out for simulation)
+  // In a production app, you would use this code to actually send WhatsApp messages via Twilio
+  /*
+  Future<bool> _sendRealWhatsAppMessage(String phoneNumber, String otpCode) async {
+    try {
+      // Prepare URL for Twilio API
       final String url = 'https://api.twilio.com/2010-04-01/Accounts/$_accountSid/Messages.json';
       
-      // Préparer les en-têtes avec l'authentification de base
+      // Prepare headers with basic authentication
       String basicAuth = 'Basic ${base64Encode(utf8.encode('$_accountSid:$_authToken'))}';
       
-      // Préparer le corps de la requête
+      // Prepare request body
       final Map<String, String> body = {
         'From': 'whatsapp:$_fromWhatsApp',
         'To': 'whatsapp:$phoneNumber',
         'ContentSid': _templateSid,
         'ContentVariables': jsonEncode({"1": otpCode}),
-        'Body': 'Votre code de vérification MonPass est: $otpCode', // Message de secours
+        'Body': 'Your MonPass verification code is: $otpCode', // Fallback message
       };
       
-      // Faire la requête HTTP
+      // Make HTTP request
       final response = await http.post(
         Uri.parse(url),
         headers: {
@@ -60,53 +123,17 @@ class TwilioWhatsAppService {
         body: body,
       );
       
-      // Vérifier la réponse
+      // Check response
       if (response.statusCode == 201 || response.statusCode == 200) {
-        // Stocker localement le code OTP pour vérification ultérieure
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_otpStorageKey, otpCode);
-        await prefs.setString(_otpPhoneKey, phoneNumber);
-        
-        debugPrint('OTP envoyé: $otpCode au numéro WhatsApp $phoneNumber');
         return true;
       } else {
-        debugPrint('Erreur Twilio: ${response.body}');
+        debugPrint('Twilio error: ${response.body}');
         return false;
       }
     } catch (e) {
-      debugPrint('Erreur d\'envoi OTP WhatsApp: $e');
+      debugPrint('Twilio API error: $e');
       return false;
     }
   }
-  
-  // Vérifier un code OTP
-  Future<bool> verifyOtp(String otpCode) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final String? storedOtp = prefs.getString(_otpStorageKey);
-      
-      // Vérifier si le code entré correspond au code stocké
-      if (storedOtp != null && storedOtp == otpCode.trim()) {
-        // Effacer le code OTP après vérification réussie
-        await prefs.remove(_otpStorageKey);
-        return true;
-      }
-      
-      return false;
-    } catch (e) {
-      debugPrint('Erreur de vérification OTP: $e');
-      return false;
-    }
-  }
-  
-  // Obtenir le numéro de téléphone stocké
-  Future<String?> getStoredPhoneNumber() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getString(_otpPhoneKey);
-    } catch (e) {
-      debugPrint('Erreur de récupération du numéro de téléphone: $e');
-      return null;
-    }
-  }
+  */
 }

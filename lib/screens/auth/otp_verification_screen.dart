@@ -4,28 +4,27 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 import 'package:monpass/services/phone_auth_service.dart';
 import 'package:monpass/services/user_service.dart';
-import 'package:monpass/services/auth_service.dart'; // Assurez-vous que cette ligne est présente
-import 'package:monpass/screens/home/home_screen.dart';
-import '../password/password_list_screen.dart';
+import 'package:monpass/services/auth_service.dart';
+import 'package:monpass/screens/password/password_list_screen.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
-  final bool isSetup; // true si configuration 2FA, false si vérification
-  final String? phoneNumber; // Numéro de téléphone pré-rempli si disponible
+  final bool isSetup; // true if 2FA setup, false if verification
+  final String? phoneNumber; // Pre-filled phone number if available
   
   const OtpVerificationScreen({
-    Key? key,
+    super.key,
     this.isSetup = false,
     this.phoneNumber,
-  }) : super(key: key);
+  });
 
   @override
-  _OtpVerificationScreenState createState() => _OtpVerificationScreenState();
+  State<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
 }
 
 class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   final PhoneAuthService _phoneAuthService = PhoneAuthService();
   final UserService _userService = UserService();
-  final AuthService _authService = AuthService(); // Cette ligne est nécessaire
+  final AuthService _authService = AuthService();
   
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _otpController = TextEditingController();
@@ -38,22 +37,41 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   String? _errorMessage;
   String? _verificationId;
   
-  // Pour une animation fluide sur les erreurs
+  // For smooth error animation
   final _errorAnimationController = GlobalKey();
   
   @override
   void initState() {
     super.initState();
     
-    // Pré-remplir le numéro de téléphone si fourni
+    _loadPhoneNumber();
+  }
+  
+  Future<void> _loadPhoneNumber() async {
+    // Try to get saved phone number if not provided
     if (widget.phoneNumber != null && widget.phoneNumber!.isNotEmpty) {
       _phoneController.text = widget.phoneNumber!;
       
-      // Envoi automatique d'OTP si le numéro de téléphone est fourni et valide
+      // Auto-send OTP if phone number is valid
       if (_isValidPhoneNumber(widget.phoneNumber!)) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _sendOtp();
         });
+      }
+    } else {
+      // Try to get previously saved phone number
+      String? savedPhone = await _userService.getSavedPhoneNumber();
+      if (savedPhone != null && savedPhone.isNotEmpty) {
+        setState(() {
+          _phoneController.text = savedPhone;
+        });
+        
+        // Auto-send OTP if phone number is valid
+        if (_isValidPhoneNumber(savedPhone)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _sendOtp();
+          });
+        }
       }
     }
   }
@@ -66,11 +84,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
   
   bool _isValidPhoneNumber(String phone) {
-    // Format international sans le "+"
+    // International format without the "+"
     return phone.replaceAll(RegExp(r'[^0-9]'), '').length >= 8;
   }
 
-  // Démarrer le compte à rebours pour le renvoi d'OTP
+  // Start countdown for OTP resend
   void _startResendCountdown() {
     setState(() {
       _resendCountdown = 60;
@@ -91,7 +109,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     });
   }
   
-  // Envoyer OTP au numéro de téléphone via WhatsApp
+  // Send OTP to phone number via WhatsApp
   Future<void> _sendOtp() async {
     if (!_formKey.currentState!.validate()) return;
     
@@ -102,7 +120,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     
     String phoneNumber = _phoneController.text.trim();
     
-    // Assurez-vous que le numéro commence par le code pays pour le Maroc
+    // Make sure number starts with country code for Morocco
     if (!phoneNumber.startsWith('+')) {
       if (phoneNumber.startsWith('0')) {
         phoneNumber = '+212' + phoneNumber.substring(1);
@@ -114,11 +132,14 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     }
     
     try {
+      // Save the phone number for future use
+      await _userService.savePhoneNumber(phoneNumber);
+      
       String? verificationId = await _phoneAuthService.sendOtp(
         phoneNumber: phoneNumber,
         onVerificationCompleted: (credential) async {
-          // Auto-vérification (fonctionnalité non disponible pour WhatsApp)
-          // Mais gardée pour compatibilité API
+          // Auto-verification (not available for WhatsApp)
+          // But kept for API compatibility
         },
         onVerificationFailed: (e) {
           String errorMessage;
@@ -168,8 +189,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     }
   }
   
-  // Vérifier le code OTP
-   Future<void> _verifyOtp() async {
+  // Verify OTP code
+  Future<void> _verifyOtp() async {
     if (_otpController.text.length < 6) {
       setState(() {
         _errorMessage = 'Veuillez entrer le code complet à 6 chiffres';
@@ -183,25 +204,32 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     });
     
     try {
-      UserCredential? userCredential = await _phoneAuthService.verifyOtp(
-        verificationId: _verificationId!,
-        smsCode: _otpController.text.trim(),
+      bool isVerified = await _authService.verifyOtp(
+        _verificationId!,
+        _otpController.text.trim(),
       );
       
-      // Marquer que la 2FA a été vérifiée avec succès
-      await _authService.set2FAVerified();
-      
-      if (widget.isSetup) {
-        // Activer 2FA dans le profil utilisateur
-        await _userService.enable2FA(_phoneController.text.trim());
-      }
-      
-      if (mounted) {
-        // Rediriger vers la liste des mots de passe après vérification 2FA
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => PasswordListScreen()),
-          (route) => false,
-        );
+      if (isVerified) {
+        // Mark that 2FA has been successfully verified
+        await _authService.set2FAVerified();
+        
+        if (widget.isSetup) {
+          // Enable 2FA in user profile
+          await _userService.enable2FA(_phoneController.text.trim());
+        }
+        
+        if (mounted) {
+          // Redirect to password list after 2FA verification
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => PasswordListScreen()),
+            (route) => false,
+          );
+        }
+      } else {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Code incorrect. Veuillez réessayer.';
+        });
       }
     } catch (e) {
       setState(() {
@@ -214,6 +242,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       });
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -347,7 +376,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                     
                     const SizedBox(height: 16),
                     
-                    // Note WhatsApp
+                    // WhatsApp note
                     Container(
                       padding: EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -489,27 +518,28 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                   ],
                   
                   // Skip for now (only in verification mode, not setup)
-if (!widget.isSetup && !_codeSent) ...[
-  const SizedBox(height: 16),
-  Center(
-    child: TextButton(
-      onPressed: () {
-        // Rediriger vers la liste des mots de passe
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => PasswordListScreen()),
-        );
-      },
-      child: Text(
-        'Ignorer pour cette fois',
-        style: TextStyle(
-          color: Colors.grey[600],
-          fontWeight: FontWeight.normal,
-        ),
-      ),
-    ),
-  ),
-],
+                  if (!widget.isSetup && !_codeSent) ...[
+                    const SizedBox(height: 16),
+                    Center(
+                      child: TextButton(
+                        onPressed: () {
+                          // Redirect to password list
+                          Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(builder: (context) => PasswordListScreen()),
+                            (route) => false,
+                          );
+                        },
+                        child: Text(
+                          'Ignorer pour cette fois',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

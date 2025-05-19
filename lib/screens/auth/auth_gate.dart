@@ -1,9 +1,9 @@
-// lib/screens/auth/auth_gate.dart (corrigé)
+// lib/screens/auth/auth_gate.dart
 import 'package:firebase_auth/firebase_auth.dart' hide EmailAuthProvider;
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
 import '../../services/user_service.dart';
-import '../password/password_list_screen.dart'; // Importation corrigée
+import '../password/password_list_screen.dart';
 import 'login_screen.dart';
 import 'otp_verification_screen.dart';
 
@@ -19,6 +19,7 @@ class _AuthGateState extends State<AuthGate> {
   final UserService _userService = UserService();
   bool _isLoading = true;
   bool _needsOtp = false;
+  String? _phoneNumber;
   
   @override
   void initState() {
@@ -28,19 +29,22 @@ class _AuthGateState extends State<AuthGate> {
   
   Future<void> _checkAuthStatus() async {
     try {
-      // Vérifier si l'utilisateur est connecté
+      // Check if user is logged in
       bool isLoggedIn = await _authService.isLoggedIn();
       
       if (isLoggedIn) {
-        // Vérifier si 2FA est activée
+        // Check if 2FA is enabled
         bool is2FAEnabled = await _authService.is2FAEnabled();
         
-        // Vérifier si 2FA a été validée
+        // Check if 2FA has been verified
         bool is2FAVerified = await _authService.is2FAVerified();
+        
+        // Get saved phone number
+        _phoneNumber = await _userService.getSavedPhoneNumber();
         
         setState(() {
           _isLoading = false;
-          // Si 2FA est activée mais pas encore vérifiée, afficher l'écran OTP
+          // If 2FA is enabled but not yet verified, show OTP screen
           _needsOtp = is2FAEnabled && !is2FAVerified;
         });
       } else {
@@ -50,7 +54,7 @@ class _AuthGateState extends State<AuthGate> {
         });
       }
     } catch (e) {
-      debugPrint('Erreur de vérification: $e');
+      debugPrint('Verification error: $e');
       setState(() {
         _isLoading = false;
         _needsOtp = false;
@@ -66,18 +70,21 @@ class _AuthGateState extends State<AuthGate> {
       );
     }
     
-    // Vérifier l'état du Firebase Auth actuel
+    // Check current Firebase Auth state
     final hasUser = FirebaseAuth.instance.currentUser != null;
     
     if (!hasUser) {
-      // Non connecté, afficher l'écran de connexion
+      // Not logged in, show login screen
       return const LoginScreen();
     } else if (_needsOtp) {
-      // Connecté mais besoin de vérifier 2FA
-      return const OtpVerificationScreen(isSetup: false);
+      // Logged in but needs to verify 2FA
+      return OtpVerificationScreen(
+        isSetup: false, 
+        phoneNumber: _phoneNumber,
+      );
     } else {
-      // Authentification complète - afficher la liste des mots de passe
-      return const PasswordListScreen(); // Correction ici
+      // Authentication complete - show password list
+      return const PasswordListScreen();
     }
   }
 }

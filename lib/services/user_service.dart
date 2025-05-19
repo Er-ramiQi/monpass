@@ -1,34 +1,35 @@
-// lib/services/user_service.dart - Updated version with 2FA support
+// lib/services/user_service.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class UserService {
-  // Clés pour le stockage local
+  // Keys for local storage
   static const String _userProfileKey = 'user_profile';
   static const String _is2FAEnabledKey = 'is_2fa_enabled';
+  static const String _userPhoneNumberKey = 'user_phone_number';
   
   // Firebase Auth
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Obtenir le profil utilisateur du stockage local
+  // Get user profile from local storage
   Future<Map<String, dynamic>?> getUserProfile() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       String? profileJson = prefs.getString(_userProfileKey);
       
       if (profileJson == null || profileJson.isEmpty) {
-        // Créer un profil par défaut si aucun n'existe
+        // Create default profile if none exists
         User? currentUser = _auth.currentUser;
         
         Map<String, dynamic> defaultProfile = {
           'email': currentUser?.email ?? '',
           'displayName': currentUser?.displayName ?? 'Utilisateur',
-          'phoneNumber': currentUser?.phoneNumber ?? '',
+          'phoneNumber': currentUser?.phoneNumber ?? await getSavedPhoneNumber() ?? '',
           'photoURL': currentUser?.photoURL,
           'createdAt': DateTime.now().millisecondsSinceEpoch,
-          'is2FAEnabled': currentUser?.phoneNumber != null && currentUser!.phoneNumber!.isNotEmpty,
+          'is2FAEnabled': await is2FAEnabled(),
           'lastUpdated': DateTime.now().millisecondsSinceEpoch,
         };
         
@@ -38,7 +39,7 @@ class UserService {
       
       Map<String, dynamic> profile = jsonDecode(profileJson) as Map<String, dynamic>;
       
-      // Synchroniser avec Firebase si nécessaire
+      // Sync with Firebase if necessary
       User? currentUser = _auth.currentUser;
       if (currentUser != null) {
         bool needsUpdate = false;
@@ -53,9 +54,17 @@ class UserService {
           needsUpdate = true;
         }
         
-        if (currentUser.phoneNumber != null && profile['phoneNumber'] != currentUser.phoneNumber) {
-          profile['phoneNumber'] = currentUser.phoneNumber;
-          profile['is2FAEnabled'] = currentUser.phoneNumber != null && currentUser.phoneNumber!.isNotEmpty;
+        // Get saved phone number if exists
+        String? savedPhone = await getSavedPhoneNumber();
+        if (savedPhone != null && savedPhone.isNotEmpty && profile['phoneNumber'] != savedPhone) {
+          profile['phoneNumber'] = savedPhone;
+          needsUpdate = true;
+        }
+        
+        // Check 2FA status
+        bool twoFAStatus = await is2FAEnabled();
+        if (profile['is2FAEnabled'] != twoFAStatus) {
+          profile['is2FAEnabled'] = twoFAStatus;
           needsUpdate = true;
         }
         
@@ -67,34 +76,34 @@ class UserService {
       
       return profile;
     } catch (e) {
-      debugPrint('Erreur de récupération de profil: $e');
+      debugPrint('Error retrieving profile: $e');
       return null;
     }
   }
 
-  // Sauvegarder le profil utilisateur
+  // Save user profile
   Future<bool> saveUserProfile(Map<String, dynamic> profile) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       return await prefs.setString(_userProfileKey, jsonEncode(profile));
     } catch (e) {
-      debugPrint('Erreur de sauvegarde de profil: $e');
+      debugPrint('Error saving profile: $e');
       return false;
     }
   }
 
-  // Mettre à jour le profil utilisateur
+  // Update user profile
   Future<bool> updateUserProfile(Map<String, dynamic> data) async {
     try {
       Map<String, dynamic>? currentProfile = await getUserProfile();
       if (currentProfile != null) {
-        // Mettre à jour les champs
+        // Update fields
         currentProfile.addAll(data);
         
-        // Mettre à jour la date de dernière modification
+        // Update last modified date
         currentProfile['lastUpdated'] = DateTime.now().millisecondsSinceEpoch;
         
-        // Synchroniser avec Firebase si possible
+        // Sync with Firebase if possible
         User? currentUser = _auth.currentUser;
         if (currentUser != null) {
           try {
@@ -107,8 +116,13 @@ class UserService {
                 data['photoURL'] != currentUser.photoURL) {
               await currentUser.updatePhotoURL(data['photoURL']);
             }
+            
+            // If phone number is updated, save it separately
+            if (data.containsKey('phoneNumber') && data['phoneNumber'] != null) {
+              await savePhoneNumber(data['phoneNumber']);
+            }
           } catch (e) {
-            debugPrint('Erreur de mise à jour Firebase: $e');
+            debugPrint('Error updating Firebase: $e');
           }
         }
         
@@ -116,37 +130,49 @@ class UserService {
       }
       return false;
     } catch (e) {
-      debugPrint('Erreur de mise à jour de profil: $e');
+      debugPrint('Error updating profile: $e');
       return false;
     }
   }
 
-  // Vérifier si 2FA est activé
+  // Check if 2FA is enabled
   Future<bool> is2FAEnabled() async {
     try {
-      // Vérifier d'abord dans Firebase
+      // First check with SharedPreferences for persistence
+      final prefs = await SharedPreferences.getInstance();
+      bool? storedValue = prefs.getBool(_is2FAEnabledKey);
+      if (storedValue != null) {
+        return storedValue;
+      }
+      
+      // Then check in Firebase
       User? currentUser = _auth.currentUser;
-      if (currentUser != null && 
+      bool firebaseEnabled = currentUser != null && 
           currentUser.phoneNumber != null && 
-          currentUser.phoneNumber!.isNotEmpty) {
+          currentUser.phoneNumber!.isNotEmpty;
+          
+      // If Firebase has it enabled, save that to preferences
+      if (firebaseEnabled) {
+        await prefs.setBool(_is2FAEnabledKey, true);
         return true;
       }
       
-      // Vérifier aussi dans le stockage local
-      Map<String, dynamic>? profile = await getUserProfile();
-      return profile != null && profile['is2FAEnabled'] == true;
+      return false;
     } catch (e) {
-      debugPrint('Erreur de vérification 2FA: $e');
+      debugPrint('Error checking 2FA: $e');
       return false;
     }
   }
 
-  // Activer 2FA
+  // Enable 2FA
   Future<bool> enable2FA(String phoneNumber) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       
-      // Mettre à jour le profil
+      // Save phone number
+      await savePhoneNumber(phoneNumber);
+      
+      // Update profile
       Map<String, dynamic>? currentProfile = await getUserProfile();
       if (currentProfile != null) {
         currentProfile['phoneNumber'] = phoneNumber;
@@ -154,44 +180,66 @@ class UserService {
         await saveUserProfile(currentProfile);
       }
       
-      // Enregistrer le statut 2FA
+      // Save 2FA status to preferences for faster access
       await prefs.setBool(_is2FAEnabledKey, true);
       return true;
     } catch (e) {
-      debugPrint('Erreur d\'activation 2FA: $e');
+      debugPrint('Error enabling 2FA: $e');
       return false;
     }
   }
 
-  // Désactiver 2FA
+  // Disable 2FA
   Future<bool> disable2FA() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       
-      // Mettre à jour le profil
+      // Update profile
       Map<String, dynamic>? currentProfile = await getUserProfile();
       if (currentProfile != null) {
         currentProfile['is2FAEnabled'] = false;
         await saveUserProfile(currentProfile);
       }
       
-      // Enregistrer le statut 2FA
+      // Save 2FA status
       await prefs.setBool(_is2FAEnabledKey, false);
       return true;
     } catch (e) {
-      debugPrint('Erreur de désactivation 2FA: $e');
+      debugPrint('Error disabling 2FA: $e');
       return false;
     }
   }
   
-  // Mettre à jour les informations de profil utilisateur
+  // Save user's phone number for future use
+  Future<bool> savePhoneNumber(String phoneNumber) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return await prefs.setString(_userPhoneNumberKey, phoneNumber);
+    } catch (e) {
+      debugPrint('Error saving phone number: $e');
+      return false;
+    }
+  }
+  
+  // Get saved phone number
+  Future<String?> getSavedPhoneNumber() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_userPhoneNumberKey);
+    } catch (e) {
+      debugPrint('Error getting saved phone number: $e');
+      return null;
+    }
+  }
+  
+  // Update display name
   Future<bool> updateDisplayName(String displayName) async {
     try {
       User? user = _auth.currentUser;
       if (user != null) {
         await user.updateDisplayName(displayName);
         
-        // Mettre également à jour le profil local
+        // Also update local profile
         await updateUserProfile({
           'displayName': displayName,
         });
@@ -200,34 +248,34 @@ class UserService {
       }
       return false;
     } catch (e) {
-      debugPrint('Erreur de mise à jour du nom: $e');
+      debugPrint('Error updating name: $e');
       return false;
     }
   }
   
-  // Obtenir le niveau de sécurité du compte (0-100)
+  // Get account security score (0-100)
   Future<int> getSecurityScore() async {
     try {
       int score = 0;
       
-      // Vérifier si 2FA est activé
+      // Check if 2FA is enabled
       bool twoFA = await is2FAEnabled();
       if (twoFA) {
-        score += 50; // 2FA représente 50% du score de sécurité
+        score += 50; // 2FA represents 50% of security score
       }
       
-      // Vérifier si l'email est vérifié
+      // Check if email is verified
       User? user = _auth.currentUser;
       if (user != null && user.emailVerified) {
-        score += 30; // Email vérifié représente 30%
+        score += 30; // Verified email represents 30%
       }
       
-      // Vérifier s'il y a une photo de profil (indique un compte plus actif)
+      // Check if there's a profile picture (indicates more active account)
       if (user != null && user.photoURL != null) {
         score += 10;
       }
       
-      // Si compte existe depuis plus d'un mois (indique compte établi)
+      // If account exists for more than a month (indicates established account)
       if (user != null && user.metadata.creationTime != null) {
         final DateTime creationTime = user.metadata.creationTime!;
         final Duration accountAge = DateTime.now().difference(creationTime);
@@ -238,7 +286,7 @@ class UserService {
       
       return score;
     } catch (e) {
-      debugPrint('Erreur de calcul du score de sécurité: $e');
+      debugPrint('Error calculating security score: $e');
       return 0;
     }
   }
