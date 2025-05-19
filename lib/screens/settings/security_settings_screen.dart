@@ -11,10 +11,10 @@ class OtpVerificationScreen extends StatefulWidget {
   final String? phoneNumber; // Numéro de téléphone pré-rempli si disponible
   
   const OtpVerificationScreen({
-    Key? key,
+    super.key,
     this.isSetup = false,
     this.phoneNumber,
-  }) : super(key: key);
+  });
 
   @override
   _OtpVerificationScreenState createState() => _OtpVerificationScreenState();
@@ -102,11 +102,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     // Assurez-vous que le numéro commence par le code pays pour le Maroc
     if (!phoneNumber.startsWith('+')) {
       if (phoneNumber.startsWith('0')) {
-        phoneNumber = '+212' + phoneNumber.substring(1);
+        phoneNumber = '+212${phoneNumber.substring(1)}';
       } else if (!phoneNumber.startsWith('212')) {
-        phoneNumber = '+212' + phoneNumber;
+        phoneNumber = '+212$phoneNumber';
       } else {
-        phoneNumber = '+' + phoneNumber;
+        phoneNumber = '+$phoneNumber';
       }
     }
     

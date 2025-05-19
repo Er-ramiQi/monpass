@@ -11,10 +11,10 @@ class OtpVerificationScreen extends StatefulWidget {
   final String? phoneNumber; // Numéro de téléphone pré-rempli si disponible
   
   const OtpVerificationScreen({
-    Key? key,
+    super.key,
     this.isSetup = false,
     this.phoneNumber,
-  }) : super(key: key);
+  });
 
   @override
   _OtpVerificationScreenState createState() => _OtpVerificationScreenState();

@@ -274,7 +274,6 @@ class _PasswordGeneratorSheet extends StatefulWidget {
   final Function(String) onGenerated;
   
   const _PasswordGeneratorSheet({
-    super.key,
     required this.onGenerated,
   });
 

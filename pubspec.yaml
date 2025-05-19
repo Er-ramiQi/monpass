@@ -29,7 +29,6 @@ dependencies:
   twilio_flutter: ^0.9.0
   random_string: ^2.3.1
   http: ^1.4.0
-  shared_preferences: ^2.5.3
   
 dev_dependencies:
   flutter_test:

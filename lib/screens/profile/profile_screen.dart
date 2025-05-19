@@ -7,8 +7,9 @@ import 'package:monpass/screens/auth/login_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 
+
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
+  const ProfileScreen({super.key});
 
   @override
   _ProfileScreenState createState() => _ProfileScreenState();
@@ -259,13 +260,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             trailing: Icon(Icons.chevron_right),
                             onTap: () async {
                               final result = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => SecuritySettingsScreen(
-                                    is2FAEnabled: _userProfile?['is2FAEnabled'] == true,
-                                  ),
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => SecuritySettingsScreen(
+                                  is2FAEnabled: _userProfile?['is2FAEnabled'] == true,
                                 ),
-                              );
+                              ),
+                            );
                               
                               if (result == true) {
                                 _loadUserProfile();

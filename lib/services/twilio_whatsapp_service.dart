@@ -43,8 +43,7 @@ class TwilioWhatsAppService {
       final String url = 'https://api.twilio.com/2010-04-01/Accounts/$_accountSid/Messages.json';
       
       // Préparer les en-têtes avec l'authentification de base
-      String basicAuth = 'Basic ' + 
-          base64Encode(utf8.encode('$_accountSid:$_authToken'));
+      String basicAuth = 'Basic ${base64Encode(utf8.encode('$_accountSid:$_authToken'))}';
       
       // Préparer le corps de la requête
       final Map<String, String> body = {

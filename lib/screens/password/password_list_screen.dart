@@ -7,7 +7,6 @@ import '../../services/password_service.dart';
 import '../../services/secure_storage_service.dart';
 import '../../theme/app_theme.dart';
 import 'add_password_screen.dart';
-import 'edit_password_screen.dart';
 import 'password_detail_screen.dart';
 import 'password_generator_screen.dart';
 import '../settings/settings_screen.dart';
