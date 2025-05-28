@@ -17,14 +17,21 @@ void main() async {
     DeviceOrientation.landscapeRight, // Added support for landscape on tablets
   ]);
   
-  // Initialize Firebase
-  await Firebase.initializeApp();
+  try {
+    // Initialize Firebase
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('Erreur d\'initialisation Firebase: $e');
+    // Continuer même si Firebase échoue pour permettre le fonctionnement hors ligne
+  }
   
   // Set status bar color
-  SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
     statusBarBrightness: Brightness.dark,
+    systemNavigationBarColor: Colors.white,
+    systemNavigationBarIconBrightness: Brightness.dark,
   ));
   
   runApp(MyApp());
@@ -55,6 +62,7 @@ class _MyAppState extends State<MyApp> {
         _isLoading = false;
       });
     } catch (e) {
+      debugPrint('Erreur de chargement des préférences: $e');
       setState(() {
         _isLoading = false;
       });
@@ -77,21 +85,25 @@ class _MyAppState extends State<MyApp> {
       _themeMode = mode;
     });
     
-    final prefs = await SharedPreferences.getInstance();
-    String themeString;
-    
-    switch (mode) {
-      case ThemeMode.light:
-        themeString = 'light';
-        break;
-      case ThemeMode.dark:
-        themeString = 'dark';
-        break;
-      default:
-        themeString = 'system';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      String themeString;
+      
+      switch (mode) {
+        case ThemeMode.light:
+          themeString = 'light';
+          break;
+        case ThemeMode.dark:
+          themeString = 'dark';
+          break;
+        default:
+          themeString = 'system';
+      }
+      
+      await prefs.setString('theme_mode', themeString);
+    } catch (e) {
+      debugPrint('Erreur de sauvegarde du thème: $e');
     }
-    
-    await prefs.setString('theme_mode', themeString);
   }
   
   @override
@@ -99,8 +111,49 @@ class _MyAppState extends State<MyApp> {
     if (_isLoading) {
       return MaterialApp(
         home: Scaffold(
-          body: Center(child: CircularProgressIndicator()),
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF667eea),
+                  const Color(0xFF764ba2),
+                ],
+              ),
+            ),
+            child: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 3,
+                  ),
+                  SizedBox(height: 24),
+                  Text(
+                    'MonPass',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Initialisation...',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
+        debugShowCheckedModeBanner: false,
       );
     }
     
@@ -110,10 +163,89 @@ class _MyAppState extends State<MyApp> {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: _themeMode,
-      home: AuthGate(),
-      // Ajouter un moyen de changer le thème
+      home: const AuthGate(),
+      // Gestionnaire d'erreurs global
+      builder: (context, child) {
+        ErrorWidget.builder = (FlutterErrorDetails errorDetails) {
+          return Scaffold(
+            body: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(0xFF667eea),
+                    const Color(0xFF764ba2),
+                  ],
+                ),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      color: Colors.white,
+                      size: 64,
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Oops! Une erreur s\'est produite',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 32),
+                      child: Text(
+                        'Veuillez redémarrer l\'application',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 16,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: () {
+                        SystemNavigator.pop();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF667eea),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                      child: const Text(
+                        'Fermer l\'application',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        };
+        return child!;
+      },
+      // Routes nommées pour une meilleure navigation
+      routes: {
+        '/login': (context) => const AuthGate(),
+      },
+      // Gestionnaire de navigation globale
       navigatorObservers: [
-        // Observer pour injecter la fonction de changement de thème
         _ThemeObserver((ThemeMode mode) {
           _setThemeMode(mode);
         }),

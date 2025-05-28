@@ -1,6 +1,7 @@
 // lib/screens/auth/auth_gate.dart
 import 'package:firebase_auth/firebase_auth.dart' hide EmailAuthProvider;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
 import '../../services/user_service.dart';
 import '../password/password_list_screen.dart';
@@ -62,11 +63,71 @@ class _AuthGateState extends State<AuthGate> {
     }
   }
 
+  // Gérer le bouton retour système
+  Future<bool> _onWillPop() async {
+    // Si on est sur l'écran de connexion, permettre la fermeture de l'app
+    if (!_isLoading && !_needsOtp && FirebaseAuth.instance.currentUser == null) {
+      // Fermer l'application proprement
+      SystemNavigator.pop();
+      return false;
+    }
+    
+    // Dans les autres cas, empêcher la fermeture
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: _buildContent(),
+    );
+  }
+  
+  Widget _buildContent() {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF667eea),
+                const Color(0xFF764ba2),
+              ],
+            ),
+          ),
+          child: const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 3,
+                ),
+                SizedBox(height: 24),
+                Text(
+                  'MonPass',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Chargement en cours...',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
     }
     

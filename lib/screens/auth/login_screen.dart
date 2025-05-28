@@ -34,10 +34,12 @@ class _LoginScreenState extends State<LoginScreen>
   late AnimationController _slideController;
   late AnimationController _fadeController;
   late AnimationController _pulseController;
+  late AnimationController _rotateController;
   
   late Animation<Offset> _slideAnimation;
   late Animation<double> _fadeAnimation;
   late Animation<double> _pulseAnimation;
+  late Animation<double> _rotateAnimation;
   
   DateTime? _lastBackPressTime;
   
@@ -50,25 +52,30 @@ class _LoginScreenState extends State<LoginScreen>
   void _initAnimations() {
     _slideController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 1200),
     );
     
     _fadeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 1500),
     );
     
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 3000),
+    );
+    
+    _rotateController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 4000),
     );
     
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.2),
+      begin: const Offset(0, 0.3),
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _slideController,
-      curve: Curves.easeOutCubic,
+      curve: Curves.elasticOut,
     ));
     
     _fadeAnimation = Tween<double>(
@@ -76,21 +83,30 @@ class _LoginScreenState extends State<LoginScreen>
       end: 1.0,
     ).animate(CurvedAnimation(
       parent: _fadeController,
-      curve: Curves.easeOut,
+      curve: Curves.easeOutCubic,
     ));
     
     _pulseAnimation = Tween<double>(
       begin: 1.0,
-      end: 1.1,
+      end: 1.15,
     ).animate(CurvedAnimation(
       parent: _pulseController,
       curve: Curves.easeInOut,
+    ));
+    
+    _rotateAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _rotateController,
+      curve: Curves.linear,
     ));
     
     // Start animations
     _fadeController.forward();
     _slideController.forward();
     _pulseController.repeat(reverse: true);
+    _rotateController.repeat();
   }
   
   @override
@@ -102,6 +118,7 @@ class _LoginScreenState extends State<LoginScreen>
     _slideController.dispose();
     _fadeController.dispose();
     _pulseController.dispose();
+    _rotateController.dispose();
     super.dispose();
   }
   
@@ -197,12 +214,17 @@ class _LoginScreenState extends State<LoginScreen>
   // Widget pour les badges de sécurité
   Widget _buildSecurityBadge(IconData icon, String label) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.green.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white.withOpacity(0.2),
+            Colors.white.withOpacity(0.1),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(15),
         border: Border.all(
-          color: Colors.green.withOpacity(0.3),
+          color: Colors.white.withOpacity(0.3),
           width: 1,
         ),
       ),
@@ -211,16 +233,16 @@ class _LoginScreenState extends State<LoginScreen>
         children: [
           Icon(
             icon,
-            size: 12,
-            color: Colors.green[700],
+            size: 14,
+            color: Colors.white,
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 6),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 10,
+            style: const TextStyle(
+              fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: Colors.green[700],
+              color: Colors.white,
             ),
           ),
         ],
@@ -248,20 +270,21 @@ class _LoginScreenState extends State<LoginScreen>
           body: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
                 colors: [
-                  AppTheme.primaryColor.withOpacity(0.8),
-                  AppTheme.secondaryColor.withOpacity(0.9),
-                  AppTheme.accentColor,
+                  Colors.blue[900]!.withOpacity(0.9),
+                  Colors.blue[700]!.withOpacity(0.8),
+                  Colors.blue[500]!.withOpacity(0.7),
+                  Colors.white.withOpacity(0.9),
                 ],
-                stops: const [0.0, 0.4, 1.0],
+                stops: const [0.0, 0.3, 0.7, 1.0],
               ),
             ),
             child: SafeArea(
               child: Column(
                 children: [
-                  const SizedBox(height: 40),
+                                                            const SizedBox(height: 12),
                   
                   Expanded(
                     child: FadeTransition(
@@ -274,140 +297,180 @@ class _LoginScreenState extends State<LoginScreen>
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const SizedBox(height: 40),
+                                const SizedBox(height: 20),
                                 
-                                // Icône principale avec animation
+                                // Icône principale avec animations
                                 AnimatedBuilder(
-                                  animation: _pulseAnimation,
+                                  animation: Listenable.merge([_pulseAnimation, _rotateAnimation]),
                                   builder: (context, child) {
                                     return Transform.scale(
                                       scale: _pulseAnimation.value,
-                                      child: Container(
-                                        width: 120,
-                                        height: 120,
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(0.2),
-                                              blurRadius: 20,
-                                              offset: const Offset(0, 10),
+                                      child: Transform.rotate(
+                                        angle: _rotateAnimation.value * 0.1, // Rotation subtile
+                                        child: Container(
+                                          width: 80,
+                                          height: 80,
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              colors: [
+                                                Colors.white.withOpacity(0.9),
+                                                Colors.white.withOpacity(0.7),
+                                              ],
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
                                             ),
-                                          ],
-                                        ),
-                                        child: const Icon(
-                                          Icons.security,
-                                          size: 60,
-                                          color: AppTheme.primaryColor,
+                                            shape: BoxShape.circle,
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.blue.withOpacity(0.3),
+                                                blurRadius: 20,
+                                                offset: const Offset(0, 10),
+                                              ),
+                                              BoxShadow(
+                                                color: Colors.blue.withOpacity(0.2),
+                                                blurRadius: 15,
+                                                offset: const Offset(0, 5),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Icon(
+                                            Icons.diamond, // Nouvelle icône élégante
+                                            size: 40,
+                                            color: Colors.blue[700],
+                                          ),
                                         ),
                                       ),
                                     );
                                   },
                                 ),
                                 
-                                const SizedBox(height: 32),
+                                const SizedBox(height: 15),
                                 
-                                // Éléments décoratifs modernes en bas
+                                // Éléments décoratifs modernes
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Container(
-                                      width: 40,
-                                      height: 2,
+                                      width: 50,
+                                      height: 3,
                                       decoration: BoxDecoration(
                                         gradient: LinearGradient(
                                           colors: [
                                             Colors.transparent,
-                                            AppTheme.primaryColor.withOpacity(0.5),
+                                            Colors.blue.withOpacity(0.6),
+                                            Colors.white.withOpacity(0.4),
                                           ],
                                         ),
+                                        borderRadius: BorderRadius.circular(2),
                                       ),
                                     ),
                                     Container(
-                                      margin: const EdgeInsets.symmetric(horizontal: 12),
-                                      padding: const EdgeInsets.all(8),
+                                      margin: const EdgeInsets.symmetric(horizontal: 15),
+                                      padding: const EdgeInsets.all(10),
                                       decoration: BoxDecoration(
-                                        color: AppTheme.primaryColor.withOpacity(0.1),
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Colors.blue.withOpacity(0.2),
+                                            Colors.white.withOpacity(0.1),
+                                          ],
+                                        ),
                                         shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Colors.white.withOpacity(0.3),
+                                          width: 1,
+                                        ),
                                       ),
                                       child: Icon(
-                                        Icons.fingerprint,
-                                        size: 16,
-                                        color: AppTheme.primaryColor,
+                                        Icons.auto_awesome, // Icône moderne
+                                        size: 20,
+                                        color: Colors.white,
                                       ),
                                     ),
                                     Container(
-                                      width: 40,
-                                      height: 2,
+                                      width: 50,
+                                      height: 3,
                                       decoration: BoxDecoration(
                                         gradient: LinearGradient(
                                           colors: [
-                                            AppTheme.primaryColor.withOpacity(0.5),
+                                            Colors.white.withOpacity(0.4),
+                                            Colors.blue.withOpacity(0.6),
                                             Colors.transparent,
                                           ],
                                         ),
+                                        borderRadius: BorderRadius.circular(2),
                                       ),
                                     ),
                                   ],
                                 ),
                                 
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 20),
                                 
-                                // Indicateurs de sécurité
+                                // Indicateurs de sécurité redesignés
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    _buildSecurityBadge(Icons.lock, 'Chiffré'),
-                                    const SizedBox(width: 12),
-                                    _buildSecurityBadge(Icons.shield, 'Sécurisé'),
-                                    const SizedBox(width: 12),
-                                    _buildSecurityBadge(Icons.verified, 'Vérifié'),
+                                    _buildSecurityBadge(Icons.enhanced_encryption, 'Crypté'),
+                                    const SizedBox(width: 10),
+                                    _buildSecurityBadge(Icons.workspace_premium, 'Premium'),
+                                    const SizedBox(width: 10),
+                                    _buildSecurityBadge(Icons.verified_user, 'Sécurisé'),
                                   ],
                                 ),
                                 
+                                const SizedBox(height: 15),
+                                
                                 // Titre
-                                const Text(
-                                  'Connexion',
-                                  style: TextStyle(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
+                                ShaderMask(
+                                  shaderCallback: (bounds) => LinearGradient(
+                                    colors: [
+                                      Colors.white,
+                                      Colors.white.withOpacity(0.8),
+                                    ],
+                                  ).createShader(bounds),
+                                  child: const Text(
+                                    'Bienvenue',
+                                    style: TextStyle(
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w300,
+                                      color: Colors.white,
+                                      letterSpacing: 1.5,
+                                    ),
+                                    textAlign: TextAlign.center,
                                   ),
-                                  textAlign: TextAlign.center,
                                 ),
                                 
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 8),
                                 
                                 // Sous-titre
                                 const Text(
-                                  'Connectez-vous à votre compte MonPass pour accéder à vos mots de passe',
+                                  'Connectez-vous pour accéder à votre coffre-fort numérique',
                                   style: TextStyle(
-                                    fontSize: 16,
+                                    fontSize: 14,
                                     color: Colors.white70,
                                     height: 1.5,
+                                    fontWeight: FontWeight.w300,
                                   ),
                                   textAlign: TextAlign.center,
                                 ),
                                 
-                                const SizedBox(height: 48),
+                                const SizedBox(height: 25),
                                 
-                                // Contenu principal avec éléments modernes
+                                // Contenu principal avec design moderne
                                 Container(
-                                  padding: const EdgeInsets.all(24),
+                                  padding: const EdgeInsets.all(28),
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(24),
+                                    color: Colors.white.withOpacity(0.95),
+                                    borderRadius: BorderRadius.circular(28),
                                     boxShadow: [
                                       BoxShadow(
                                         color: Colors.black.withOpacity(0.1),
-                                        blurRadius: 20,
-                                        offset: const Offset(0, 10),
+                                        blurRadius: 30,
+                                        offset: const Offset(0, 15),
                                       ),
                                       BoxShadow(
-                                        color: AppTheme.primaryColor.withOpacity(0.1),
-                                        blurRadius: 30,
-                                        offset: const Offset(0, 20),
+                                        color: Colors.purple.withOpacity(0.1),
+                                        blurRadius: 40,
+                                        offset: const Offset(0, 25),
                                       ),
                                     ],
                                   ),
@@ -417,54 +480,55 @@ class _LoginScreenState extends State<LoginScreen>
                                       crossAxisAlignment: CrossAxisAlignment.stretch,
                                       children: [
                                         // Badge de bienvenue moderne
-                                        Center(
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 8,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              gradient: LinearGradient(
-                                                colors: [
-                                                  AppTheme.primaryColor.withOpacity(0.1),
-                                                  AppTheme.accentColor.withOpacity(0.1),
-                                                ],
-                                              ),
-                                              borderRadius: BorderRadius.circular(20),
-                                              border: Border.all(
-                                                color: AppTheme.primaryColor.withOpacity(0.2),
-                                              ),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Icon(
-                                                  Icons.verified_user,
-                                                  size: 16,
-                                                  color: AppTheme.primaryColor,
-                                                ),
-                                                const SizedBox(width: 6),
-                                                const Text(
-                                                  'Connexion sécurisée',
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: AppTheme.primaryColor,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
+                                        // Center(
+                                        //   child: Container(
+                                        //     padding: const EdgeInsets.symmetric(
+                                        //       horizontal: 20,
+                                        //       vertical: 10,
+                                        //     ),
+                                        //     decoration: BoxDecoration(
+                                        //       gradient: LinearGradient(
+                                        //         colors: [
+                                        //           Colors.white.withOpacity(0.2),
+                                        //           Colors.white.withOpacity(0.1),
+                                        //         ],
+                                        //       ),
+                                        //       borderRadius: BorderRadius.circular(25),
+                                        //       border: Border.all(
+                                        //         color: Colors.white.withOpacity(0.3),
+                                        //       ),
+                                        //     ),
+                                            // child: Row(
+                                            //   mainAxisSize: MainAxisSize.min,
+                                            //   children: [
+                                            //     Icon(
+                                            //       Icons.rocket_launch,
+                                            //       size: 18,
+                                            //       color: Colors.white,
+                                            //     ),
+                                            //     const SizedBox(width: 8),
+                                            //     const Text(
+                                            //       'Connexion Express',
+                                            //       style: TextStyle(
+                                            //         fontSize: 13,
+                                            //         fontWeight: FontWeight.w600,
+                                            //         color: Colors.white,
+                                            //       ),
+                                            //     ),
+                                            //   ],
+                                            // ),
+                                        //   ),
+                                        // ),
                                         
-                                        const SizedBox(height: 24),
+                                        const SizedBox(height: 16),
+                                        
                                         // Message d'erreur
                                         if (_errorMessage != null) ...[
                                           Container(
                                             padding: const EdgeInsets.all(16),
                                             decoration: BoxDecoration(
                                               color: Colors.red.shade50,
-                                              borderRadius: BorderRadius.circular(12),
+                                              borderRadius: BorderRadius.circular(16),
                                               border: Border.all(
                                                 color: Colors.red.shade200,
                                               ),
@@ -487,7 +551,7 @@ class _LoginScreenState extends State<LoginScreen>
                                               ],
                                             ),
                                           ),
-                                          const SizedBox(height: 24),
+                                          const SizedBox(height: 12),
                                         ],
                                         
                                         // Champ Email
@@ -496,33 +560,37 @@ class _LoginScreenState extends State<LoginScreen>
                                           focusNode: _emailFocus,
                                           keyboardType: TextInputType.emailAddress,
                                           textInputAction: TextInputAction.next,
+                                          style: const TextStyle(
+                                            color: Colors.black,
+                                            fontSize: 16,
+                                          ),
                                           onEditingComplete: () {
                                             _passwordFocus.requestFocus();
                                           },
                                           decoration: InputDecoration(
                                             labelText: 'Email',
                                             hintText: 'votre@email.com',
-                                            prefixIcon: const Icon(
-                                              Icons.email_outlined,
-                                              color: AppTheme.primaryColor,
+                                            prefixIcon: Icon(
+                                              Icons.alternate_email,
+                                              color: Colors.blue[600],
                                             ),
                                             filled: true,
                                             fillColor: Colors.grey[50],
                                             border: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(16),
+                                              borderRadius: BorderRadius.circular(18),
                                               borderSide: BorderSide.none,
                                             ),
                                             enabledBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(16),
+                                              borderRadius: BorderRadius.circular(18),
                                               borderSide: BorderSide(
                                                 color: Colors.grey[300]!,
                                                 width: 1,
                                               ),
                                             ),
                                             focusedBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(16),
-                                              borderSide: const BorderSide(
-                                                color: AppTheme.primaryColor,
+                                              borderRadius: BorderRadius.circular(18),
+                                              borderSide: BorderSide(
+                                                color: Colors.blue[600]!,
                                                 width: 2,
                                               ),
                                             ),
@@ -546,19 +614,23 @@ class _LoginScreenState extends State<LoginScreen>
                                           focusNode: _passwordFocus,
                                           obscureText: _obscurePassword,
                                           textInputAction: TextInputAction.done,
+                                          style: const TextStyle(
+                                            color: Colors.black,
+                                            fontSize: 16,
+                                          ),
                                           onEditingComplete: _signIn,
                                           decoration: InputDecoration(
                                             labelText: 'Mot de passe',
                                             hintText: 'Votre mot de passe',
-                                            prefixIcon: const Icon(
-                                              Icons.lock_outline,
-                                              color: AppTheme.primaryColor,
+                                            prefixIcon: Icon(
+                                              Icons.key,
+                                              color: Colors.blue[600],
                                             ),
                                             suffixIcon: IconButton(
                                               icon: Icon(
                                                 _obscurePassword
-                                                    ? Icons.visibility
-                                                    : Icons.visibility_off,
+                                                    ? Icons.visibility_outlined
+                                                    : Icons.visibility_off_outlined,
                                                 color: Colors.grey[600],
                                               ),
                                               onPressed: () {
@@ -570,20 +642,20 @@ class _LoginScreenState extends State<LoginScreen>
                                             filled: true,
                                             fillColor: Colors.grey[50],
                                             border: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(16),
+                                              borderRadius: BorderRadius.circular(18),
                                               borderSide: BorderSide.none,
                                             ),
                                             enabledBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(16),
+                                              borderRadius: BorderRadius.circular(18),
                                               borderSide: BorderSide(
                                                 color: Colors.grey[300]!,
                                                 width: 1,
                                               ),
                                             ),
                                             focusedBorder: OutlineInputBorder(
-                                              borderRadius: BorderRadius.circular(16),
-                                              borderSide: const BorderSide(
-                                                color: AppTheme.primaryColor,
+                                              borderRadius: BorderRadius.circular(18),
+                                              borderSide: BorderSide(
+                                                color: Colors.blue[600]!,
                                                 width: 2,
                                               ),
                                             ),
@@ -609,34 +681,37 @@ class _LoginScreenState extends State<LoginScreen>
                                                 ),
                                               );
                                             },
-                                            child: const Text(
+                                            child: Text(
                                               'Mot de passe oublié?',
                                               style: TextStyle(
-                                                color: AppTheme.primaryColor,
+                                                color: Colors.blue[600],
                                                 fontWeight: FontWeight.w600,
                                               ),
                                             ),
                                           ),
                                         ),
                                         
-                                        const SizedBox(height: 16),
+                                        const SizedBox(height: 20),
                                         
                                         // Bouton de connexion
                                         Container(
-                                          height: 56,
+                                          height: 58,
                                           decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.circular(16),
-                                            gradient: const LinearGradient(
+                                            borderRadius: BorderRadius.circular(18),
+                                            gradient: LinearGradient(
                                               colors: [
-                                                AppTheme.primaryColor,
-                                                AppTheme.secondaryColor,
+                                                Colors.blue[600]!,
+                                                Colors.blue[500]!,
+                                                Colors.white.withOpacity(0.9),
                                               ],
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
                                             ),
                                             boxShadow: [
                                               BoxShadow(
-                                                color: AppTheme.primaryColor.withOpacity(0.3),
-                                                blurRadius: 10,
-                                                offset: const Offset(0, 4),
+                                                color: Colors.blue.withOpacity(0.4),
+                                                blurRadius: 15,
+                                                offset: const Offset(0, 8),
                                               ),
                                             ],
                                           ),
@@ -646,7 +721,7 @@ class _LoginScreenState extends State<LoginScreen>
                                               backgroundColor: Colors.transparent,
                                               shadowColor: Colors.transparent,
                                               shape: RoundedRectangleBorder(
-                                                borderRadius: BorderRadius.circular(16),
+                                                borderRadius: BorderRadius.circular(18),
                                               ),
                                             ),
                                             child: _isLoading
@@ -655,28 +730,45 @@ class _LoginScreenState extends State<LoginScreen>
                                                     height: 24,
                                                     child: CircularProgressIndicator(
                                                       color: Colors.white,
-                                                      strokeWidth: 3,
+                                                      strokeWidth: 2.5,
                                                     ),
                                                   )
-                                                : const Text(
-                                                    'Se connecter',
-                                                    style: TextStyle(
-                                                      fontSize: 18,
-                                                      fontWeight: FontWeight.bold,
-                                                      color: Colors.white,
-                                                    ),
+                                                : const Row(
+                                                    mainAxisAlignment: MainAxisAlignment.center,
+                                                    children: [
+                                                      Icon(
+                                                        Icons.login,
+                                                        color: Colors.white,
+                                                        size: 22,
+                                                      ),
+                                                      SizedBox(width: 10),
+                                                      Text(
+                                                        'Se connecter',
+                                                        style: TextStyle(
+                                                          fontSize: 18,
+                                                          fontWeight: FontWeight.w600,
+                                                          color: Colors.white,
+                                                          letterSpacing: 0.5,
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
                                           ),
                                         ),
                                         
-                                        const SizedBox(height: 24),
+                                        const SizedBox(height: 30),
                                         
                                         // Lien d'inscription avec design amélioré
                                         Container(
-                                          padding: const EdgeInsets.symmetric(vertical: 16),
+                                          padding: const EdgeInsets.symmetric(vertical: 12),
                                           decoration: BoxDecoration(
-                                            color: Colors.grey[50],
-                                            borderRadius: BorderRadius.circular(12),
+                                            gradient: LinearGradient(
+                                              colors: [
+                                                Colors.grey[50]!,
+                                                Colors.grey[100]!,
+                                              ],
+                                            ),
+                                            borderRadius: BorderRadius.circular(16),
                                             border: Border.all(
                                               color: Colors.grey[200]!,
                                               width: 1,
@@ -684,15 +776,6 @@ class _LoginScreenState extends State<LoginScreen>
                                           ),
                                           child: Column(
                                             children: [
-                                              Text(
-                                                'Nouveau sur MonPass ?',
-                                                style: TextStyle(
-                                                  color: Colors.grey[600],
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 8),
                                               SizedBox(
                                                 width: double.infinity,
                                                 child: OutlinedButton.icon(
@@ -705,29 +788,30 @@ class _LoginScreenState extends State<LoginScreen>
                                                       ),
                                                     );
                                                   },
-                                                  icon: const Icon(
-                                                    Icons.person_add_outlined,
-                                                    size: 18,
+                                                  icon: Icon(
+                                                    Icons.person_add_alt_1,
+                                                    size: 20,
+                                                    color: Colors.blue[600],
                                                   ),
-                                                  label: const Text(
+                                                  label: Text(
                                                     'Créer un compte',
                                                     style: TextStyle(
-                                                      fontWeight: FontWeight.bold,
-                                                      fontSize: 15,
+                                                      fontWeight: FontWeight.w600,
+                                                      fontSize: 16,
+                                                      color: Colors.blue[600],
                                                     ),
                                                   ),
                                                   style: OutlinedButton.styleFrom(
-                                                    foregroundColor: AppTheme.primaryColor,
-                                                    side: const BorderSide(
-                                                      color: AppTheme.primaryColor,
+                                                    side: BorderSide(
+                                                      color: Colors.blue[600]!,
                                                       width: 2,
                                                     ),
                                                     padding: const EdgeInsets.symmetric(
                                                       vertical: 12,
-                                                      horizontal: 16,
+                                                      horizontal: 20,
                                                     ),
                                                     shape: RoundedRectangleBorder(
-                                                      borderRadius: BorderRadius.circular(10),
+                                                      borderRadius: BorderRadius.circular(12),
                                                     ),
                                                   ),
                                                 ),
@@ -740,7 +824,7 @@ class _LoginScreenState extends State<LoginScreen>
                                   ),
                                 ),
                                 
-                                const SizedBox(height: 32),
+                                const SizedBox(height: 20),
                               ],
                             ),
                           ),
