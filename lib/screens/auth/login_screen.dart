@@ -15,14 +15,14 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen> 
+    with TickerProviderStateMixin {
   final AuthService _authService = AuthService();
   final _formKey = GlobalKey<FormState>();
   
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   
-  // Focus nodes pour gérer le clavier
   final FocusNode _emailFocus = FocusNode();
   final FocusNode _passwordFocus = FocusNode();
   
@@ -30,39 +30,67 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   String? _errorMessage;
   bool _obscurePassword = true;
   
-  // Animation controller
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
+  // Animation controllers
+  late AnimationController _slideController;
+  late AnimationController _fadeController;
+  late AnimationController _pulseController;
   
-  // Pour garder trace des tentatives de retour
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _fadeAnimation;
+  late Animation<double> _pulseAnimation;
+  
   DateTime? _lastBackPressTime;
   
   @override
   void initState() {
     super.initState();
-    
-    // Initialize animations
-    _animationController = AnimationController(
+    _initAnimations();
+  }
+  
+  void _initAnimations() {
+    _slideController = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 800),
     );
     
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Interval(0.0, 0.6, curve: Curves.easeOut),
-      ),
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
     );
     
-    _slideAnimation = Tween<Offset>(begin: Offset(0, 0.2), end: Offset.zero).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Interval(0.2, 0.8, curve: Curves.easeOut),
-      ),
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
     );
     
-    _animationController.forward();
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.2),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _slideController,
+      curve: Curves.easeOutCubic,
+    ));
+    
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeOut,
+    ));
+    
+    _pulseAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.1,
+    ).animate(CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.easeInOut,
+    ));
+    
+    // Start animations
+    _fadeController.forward();
+    _slideController.forward();
+    _pulseController.repeat(reverse: true);
   }
   
   @override
@@ -71,13 +99,13 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     _passwordController.dispose();
     _emailFocus.dispose();
     _passwordFocus.dispose();
-    _animationController.dispose();
+    _slideController.dispose();
+    _fadeController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
   
-  // Gérer le retour en arrière pour confirmer l'action
   Future<bool> _onWillPop() async {
-    // Si un champ est en focus, juste enlever le focus
     if (_emailFocus.hasFocus || _passwordFocus.hasFocus) {
       _emailFocus.unfocus();
       _passwordFocus.unfocus();
@@ -86,10 +114,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     
     final now = DateTime.now();
     if (_lastBackPressTime == null || 
-        now.difference(_lastBackPressTime!) > Duration(seconds: 2)) {
+        now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
       _lastBackPressTime = now;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Appuyez à nouveau pour quitter'),
           duration: Duration(seconds: 2),
         ),
@@ -108,35 +136,30 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     });
     
     try {
-      // Connecter l'utilisateur
       await _authService.signInWithEmailPassword(
         _emailController.text.trim(),
         _passwordController.text,
       );
       
-      // Vérifier si la 2FA est activée
       bool is2FAEnabled = await _authService.is2FAEnabled();
       
       if (is2FAEnabled) {
-        // Rediriger vers l'écran de vérification 2FA
         if (mounted) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => OtpVerificationScreen(isSetup: false),
+              builder: (context) => const OtpVerificationScreen(isSetup: false),
             ),
           );
         }
       } else {
-        // Marquer que la 2FA est vérifiée (car elle n'est pas activée)
         await _authService.set2FAVerified();
         
-        // Rediriger vers l'écran principal
         if (mounted) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => PasswordListScreen(),
+              builder: (context) => const PasswordListScreen(),
             ),
           );
         }
@@ -161,7 +184,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         case 'invalid-credential':
           return 'Email ou mot de passe incorrect';
         case 'too-many-requests':
-          return 'Trop de tentatives de connexion. Veuillez réessayer plus tard';
+          return 'Trop de tentatives. Veuillez réessayer plus tard';
         case 'invalid-email':
           return 'Format d\'email invalide';
         default:
@@ -170,303 +193,562 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     }
     return 'Une erreur s\'est produite. Veuillez réessayer.';
   }
+  
+  // Widget pour les badges de sécurité
+  Widget _buildSecurityBadge(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.green.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.green.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 12,
+            color: Colors.green[700],
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Colors.green[700],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final double screenHeight = MediaQuery.of(context).size.height;
-    
     return PopScope(
       canPop: false,
       onPopInvoked: (didPop) async {
         if (didPop) return;
-        
         final shouldPop = await _onWillPop();
-        if (shouldPop) {
+        if (shouldPop && mounted) {
           Navigator.pop(context);
         }
       },
       child: GestureDetector(
-        // Cliquer en dehors du champ pour fermer le clavier
         onTap: () {
           _emailFocus.unfocus();
           _passwordFocus.unfocus();
         },
         child: Scaffold(
-          backgroundColor: Colors.white,
-          body: SafeArea(
-            child: SingleChildScrollView(
-              child: SizedBox(
-                height: screenHeight - MediaQuery.of(context).padding.top - MediaQuery.of(context).padding.bottom,
-                child: Column(
-                  children: [
-                    // App logo and header section
-                    Expanded(
-                      flex: 3,
-                      child: FadeTransition(
-                        opacity: _fadeAnimation,
-                        child: SlideTransition(
-                          position: _slideAnimation,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  AppTheme.primaryColor,
-                                  AppTheme.secondaryColor,
-                                ],
-                              ),
-                              borderRadius: BorderRadius.only(
-                                bottomLeft: Radius.circular(30),
-                                bottomRight: Radius.circular(30),
-                              ),
-                            ),
-                            child: Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  // App logo
-                                  Container(
-                                    width: 100,
-                                    height: 100,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withValues(alpha: 26.0),
-                                          blurRadius: 10,
-                                          offset: Offset(0, 5),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Icon(
-                                      Icons.lock_outline,
-                                      size: 60,
-                                      color: AppTheme.primaryColor,
-                                    ),
-                                  ),
-                                  SizedBox(height: 24),
-                                  Text(
-                                    'MonPass',
-                                    style: TextStyle(
-                                      fontSize: 32,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'Vos mots de passe en sécurité',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color: Colors.white.withValues(alpha: 230.0),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    
-                    // Login form section
-                    Expanded(
-                      flex: 5,
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: FadeTransition(
-                          opacity: _fadeAnimation,
-                          child: Form(
-                            key: _formKey,
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppTheme.primaryColor.withOpacity(0.8),
+                  AppTheme.secondaryColor.withOpacity(0.9),
+                  AppTheme.accentColor,
+                ],
+                stops: const [0.0, 0.4, 1.0],
+              ),
+            ),
+            child: SafeArea(
+              child: Column(
+                children: [
+                  const SizedBox(height: 40),
+                  
+                  Expanded(
+                    child: FadeTransition(
+                      opacity: _fadeAnimation,
+                      child: SlideTransition(
+                        position: _slideAnimation,
+                        child: SingleChildScrollView(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24.0),
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                // Title
-                                Text(
-                                  'Connexion',
-                                  style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppTheme.primaryColor,
-                                  ),
-                                ),
-                                SizedBox(height: 6),
-                                Text(
-                                  'Entrez vos identifiants pour continuer',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                                SizedBox(height: 24),
+                                const SizedBox(height: 40),
                                 
-                                // Error message
-                                if (_errorMessage != null) ...[
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.withValues(alpha: 13.0),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: Colors.red.withValues(alpha: 51.0)),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.error_outline, color: Colors.red),
-                                        SizedBox(width: 12),
-                                        Expanded(
-                                          child: Text(
-                                            _errorMessage!,
-                                            style: TextStyle(color: Colors.red[700]),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  SizedBox(height: 24),
-                                ],
-                                
-                                // Email field
-                                TextFormField(
-                                  controller: _emailController,
-                                  focusNode: _emailFocus,
-                                  keyboardType: TextInputType.emailAddress,
-                                  textInputAction: TextInputAction.next,
-                                  onEditingComplete: () {
-                                    _passwordFocus.requestFocus();
-                                  },
-                                  decoration: InputDecoration(
-                                    labelText: 'Email',
-                                    hintText: 'Entrez votre adresse email',
-                                    prefixIcon: Icon(Icons.email_outlined, color: AppTheme.primaryColor),
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Veuillez entrer votre email';
-                                    }
-                                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-                                      return 'Veuillez entrer un email valide';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                SizedBox(height: 20),
-                                
-                                // Password field
-                                TextFormField(
-                                  controller: _passwordController,
-                                  focusNode: _passwordFocus,
-                                  obscureText: _obscurePassword,
-                                  textInputAction: TextInputAction.done,
-                                  onEditingComplete: _signIn,
-                                  decoration: InputDecoration(
-                                    labelText: 'Mot de passe',
-                                    hintText: 'Entrez votre mot de passe',
-                                    prefixIcon: Icon(Icons.lock_outline, color: AppTheme.primaryColor),
-                                    suffixIcon: IconButton(
-                                      icon: Icon(
-                                        _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                                        color: Colors.grey,
-                                      ),
-                                      onPressed: () {
-                                        setState(() {
-                                          _obscurePassword = !_obscurePassword;
-                                        });
-                                      },
-                                    ),
-                                  ),
-                                  validator: (value) {
-                                    if (value == null || value.isEmpty) {
-                                      return 'Veuillez entrer votre mot de passe';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                
-                                // Forgot password link
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton(
-                                    onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => ForgotPasswordScreen(),
-                                        ),
-                                      );
-                                    },
-                                    child: Text('Mot de passe oublié?'),
-                                  ),
-                                ),
-                                
-                                SizedBox(height: 20),
-                                
-                                // Login button
-                                SizedBox(
-                                  height: 56,
-                                  child: ElevatedButton(
-                                    onPressed: _isLoading ? null : _signIn,
-                                    style: ElevatedButton.styleFrom(
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                    child: _isLoading
-                                        ? SizedBox(
-                                            width: 24,
-                                            height: 24,
-                                            child: CircularProgressIndicator(
-                                              color: Colors.white,
-                                              strokeWidth: 2,
+                                // Icône principale avec animation
+                                AnimatedBuilder(
+                                  animation: _pulseAnimation,
+                                  builder: (context, child) {
+                                    return Transform.scale(
+                                      scale: _pulseAnimation.value,
+                                      child: Container(
+                                        width: 120,
+                                        height: 120,
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          shape: BoxShape.circle,
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(0.2),
+                                              blurRadius: 20,
+                                              offset: const Offset(0, 10),
                                             ),
-                                          )
-                                        : Text(
-                                            'Se connecter',
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                  ),
+                                          ],
+                                        ),
+                                        child: const Icon(
+                                          Icons.security,
+                                          size: 60,
+                                          color: AppTheme.primaryColor,
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
                                 
-                                const Spacer(),
+                                const SizedBox(height: 32),
                                 
-                                // Register link
+                                // Éléments décoratifs modernes en bas
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Text(
-                                      'Vous n\'avez pas de compte?',
-                                      style: TextStyle(color: Colors.grey[700]),
+                                    Container(
+                                      width: 40,
+                                      height: 2,
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Colors.transparent,
+                                            AppTheme.primaryColor.withOpacity(0.5),
+                                          ],
+                                        ),
+                                      ),
                                     ),
-                                    TextButton(
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => RegisterScreen(),
-                                          ),
-                                        );
-                                      },
-                                      child: Text(
-                                        'S\'inscrire',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
+                                    Container(
+                                      margin: const EdgeInsets.symmetric(horizontal: 12),
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.primaryColor.withOpacity(0.1),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        Icons.fingerprint,
+                                        size: 16,
+                                        color: AppTheme.primaryColor,
+                                      ),
+                                    ),
+                                    Container(
+                                      width: 40,
+                                      height: 2,
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            AppTheme.primaryColor.withOpacity(0.5),
+                                            Colors.transparent,
+                                          ],
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
+                                
+                                const SizedBox(height: 16),
+                                
+                                // Indicateurs de sécurité
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    _buildSecurityBadge(Icons.lock, 'Chiffré'),
+                                    const SizedBox(width: 12),
+                                    _buildSecurityBadge(Icons.shield, 'Sécurisé'),
+                                    const SizedBox(width: 12),
+                                    _buildSecurityBadge(Icons.verified, 'Vérifié'),
+                                  ],
+                                ),
+                                
+                                // Titre
+                                const Text(
+                                  'Connexion',
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                
+                                const SizedBox(height: 16),
+                                
+                                // Sous-titre
+                                const Text(
+                                  'Connectez-vous à votre compte MonPass pour accéder à vos mots de passe',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.white70,
+                                    height: 1.5,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                
+                                const SizedBox(height: 48),
+                                
+                                // Contenu principal avec éléments modernes
+                                Container(
+                                  padding: const EdgeInsets.all(24),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(24),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.1),
+                                        blurRadius: 20,
+                                        offset: const Offset(0, 10),
+                                      ),
+                                      BoxShadow(
+                                        color: AppTheme.primaryColor.withOpacity(0.1),
+                                        blurRadius: 30,
+                                        offset: const Offset(0, 20),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Form(
+                                    key: _formKey,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      children: [
+                                        // Badge de bienvenue moderne
+                                        Center(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 8,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                colors: [
+                                                  AppTheme.primaryColor.withOpacity(0.1),
+                                                  AppTheme.accentColor.withOpacity(0.1),
+                                                ],
+                                              ),
+                                              borderRadius: BorderRadius.circular(20),
+                                              border: Border.all(
+                                                color: AppTheme.primaryColor.withOpacity(0.2),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  Icons.verified_user,
+                                                  size: 16,
+                                                  color: AppTheme.primaryColor,
+                                                ),
+                                                const SizedBox(width: 6),
+                                                const Text(
+                                                  'Connexion sécurisée',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: AppTheme.primaryColor,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        
+                                        const SizedBox(height: 24),
+                                        // Message d'erreur
+                                        if (_errorMessage != null) ...[
+                                          Container(
+                                            padding: const EdgeInsets.all(16),
+                                            decoration: BoxDecoration(
+                                              color: Colors.red.shade50,
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(
+                                                color: Colors.red.shade200,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.error_outline,
+                                                  color: Colors.red.shade700,
+                                                ),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Text(
+                                                    _errorMessage!,
+                                                    style: TextStyle(
+                                                      color: Colors.red.shade700,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(height: 24),
+                                        ],
+                                        
+                                        // Champ Email
+                                        TextFormField(
+                                          controller: _emailController,
+                                          focusNode: _emailFocus,
+                                          keyboardType: TextInputType.emailAddress,
+                                          textInputAction: TextInputAction.next,
+                                          onEditingComplete: () {
+                                            _passwordFocus.requestFocus();
+                                          },
+                                          decoration: InputDecoration(
+                                            labelText: 'Email',
+                                            hintText: 'votre@email.com',
+                                            prefixIcon: const Icon(
+                                              Icons.email_outlined,
+                                              color: AppTheme.primaryColor,
+                                            ),
+                                            filled: true,
+                                            fillColor: Colors.grey[50],
+                                            border: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(16),
+                                              borderSide: BorderSide.none,
+                                            ),
+                                            enabledBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(16),
+                                              borderSide: BorderSide(
+                                                color: Colors.grey[300]!,
+                                                width: 1,
+                                              ),
+                                            ),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(16),
+                                              borderSide: const BorderSide(
+                                                color: AppTheme.primaryColor,
+                                                width: 2,
+                                              ),
+                                            ),
+                                          ),
+                                          validator: (value) {
+                                            if (value == null || value.isEmpty) {
+                                              return 'Veuillez entrer votre email';
+                                            }
+                                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                                                .hasMatch(value)) {
+                                              return 'Veuillez entrer un email valide';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                        const SizedBox(height: 16),
+                                        
+                                        // Champ Mot de passe
+                                        TextFormField(
+                                          controller: _passwordController,
+                                          focusNode: _passwordFocus,
+                                          obscureText: _obscurePassword,
+                                          textInputAction: TextInputAction.done,
+                                          onEditingComplete: _signIn,
+                                          decoration: InputDecoration(
+                                            labelText: 'Mot de passe',
+                                            hintText: 'Votre mot de passe',
+                                            prefixIcon: const Icon(
+                                              Icons.lock_outline,
+                                              color: AppTheme.primaryColor,
+                                            ),
+                                            suffixIcon: IconButton(
+                                              icon: Icon(
+                                                _obscurePassword
+                                                    ? Icons.visibility
+                                                    : Icons.visibility_off,
+                                                color: Colors.grey[600],
+                                              ),
+                                              onPressed: () {
+                                                setState(() {
+                                                  _obscurePassword = !_obscurePassword;
+                                                });
+                                              },
+                                            ),
+                                            filled: true,
+                                            fillColor: Colors.grey[50],
+                                            border: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(16),
+                                              borderSide: BorderSide.none,
+                                            ),
+                                            enabledBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(16),
+                                              borderSide: BorderSide(
+                                                color: Colors.grey[300]!,
+                                                width: 1,
+                                              ),
+                                            ),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(16),
+                                              borderSide: const BorderSide(
+                                                color: AppTheme.primaryColor,
+                                                width: 2,
+                                              ),
+                                            ),
+                                          ),
+                                          validator: (value) {
+                                            if (value == null || value.isEmpty) {
+                                              return 'Veuillez entrer votre mot de passe';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                        
+                                        // Lien mot de passe oublié
+                                        Align(
+                                          alignment: Alignment.centerRight,
+                                          child: TextButton(
+                                            onPressed: () {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) => 
+                                                      const ForgotPasswordScreen(),
+                                                ),
+                                              );
+                                            },
+                                            child: const Text(
+                                              'Mot de passe oublié?',
+                                              style: TextStyle(
+                                                color: AppTheme.primaryColor,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        
+                                        const SizedBox(height: 16),
+                                        
+                                        // Bouton de connexion
+                                        Container(
+                                          height: 56,
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(16),
+                                            gradient: const LinearGradient(
+                                              colors: [
+                                                AppTheme.primaryColor,
+                                                AppTheme.secondaryColor,
+                                              ],
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: AppTheme.primaryColor.withOpacity(0.3),
+                                                blurRadius: 10,
+                                                offset: const Offset(0, 4),
+                                              ),
+                                            ],
+                                          ),
+                                          child: ElevatedButton(
+                                            onPressed: _isLoading ? null : _signIn,
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.transparent,
+                                              shadowColor: Colors.transparent,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(16),
+                                              ),
+                                            ),
+                                            child: _isLoading
+                                                ? const SizedBox(
+                                                    width: 24,
+                                                    height: 24,
+                                                    child: CircularProgressIndicator(
+                                                      color: Colors.white,
+                                                      strokeWidth: 3,
+                                                    ),
+                                                  )
+                                                : const Text(
+                                                    'Se connecter',
+                                                    style: TextStyle(
+                                                      fontSize: 18,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
+                                          ),
+                                        ),
+                                        
+                                        const SizedBox(height: 24),
+                                        
+                                        // Lien d'inscription avec design amélioré
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(vertical: 16),
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey[50],
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(
+                                              color: Colors.grey[200]!,
+                                              width: 1,
+                                            ),
+                                          ),
+                                          child: Column(
+                                            children: [
+                                              Text(
+                                                'Nouveau sur MonPass ?',
+                                                style: TextStyle(
+                                                  color: Colors.grey[600],
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              SizedBox(
+                                                width: double.infinity,
+                                                child: OutlinedButton.icon(
+                                                  onPressed: () {
+                                                    Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder: (context) => 
+                                                            const RegisterScreen(),
+                                                      ),
+                                                    );
+                                                  },
+                                                  icon: const Icon(
+                                                    Icons.person_add_outlined,
+                                                    size: 18,
+                                                  ),
+                                                  label: const Text(
+                                                    'Créer un compte',
+                                                    style: TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 15,
+                                                    ),
+                                                  ),
+                                                  style: OutlinedButton.styleFrom(
+                                                    foregroundColor: AppTheme.primaryColor,
+                                                    side: const BorderSide(
+                                                      color: AppTheme.primaryColor,
+                                                      width: 2,
+                                                    ),
+                                                    padding: const EdgeInsets.symmetric(
+                                                      vertical: 12,
+                                                      horizontal: 16,
+                                                    ),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius: BorderRadius.circular(10),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                
+                                const SizedBox(height: 32),
                               ],
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
