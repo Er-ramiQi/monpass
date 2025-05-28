@@ -8,6 +8,7 @@ import 'package:monpass/services/auth_service.dart';
 import 'package:monpass/screens/password/password_list_screen.dart';
 import 'package:monpass/screens/auth/login_screen.dart';
 import 'package:monpass/theme/app_theme.dart';
+import 'dart:async';
 
 class OtpVerificationScreen extends StatefulWidget {
   final bool isSetup; // true if 2FA setup, false if verification
@@ -29,16 +30,15 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
   final UserService _userService = UserService();
   final AuthService _authService = AuthService();
   
-  final _formKey = GlobalKey<FormState>();
   final TextEditingController _otpController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
   
   bool _isLoading = false;
-  bool _codeSent = false;
   bool _isResending = false;
-  int _resendCountdown = 60;
+  int _resendCountdown = 120; // 2 minutes = 120 secondes
   String? _errorMessage;
   String? _verificationId;
+  String? _phoneNumber;
+  Timer? _countdownTimer;
   
   // Animation controllers
   late AnimationController _slideController;
@@ -55,23 +55,23 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
   void initState() {
     super.initState();
     _initAnimations();
-    _loadPhoneNumber();
+    _loadPhoneNumberAndSendOtp();
   }
   
   void _initAnimations() {
     _slideController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 1200),
     );
     
     _fadeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 1500),
     );
     
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 3000),
     );
     
     _shakeController = AnimationController(
@@ -84,7 +84,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
       end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _slideController,
-      curve: Curves.easeOutCubic,
+      curve: Curves.elasticOut,
     ));
     
     _fadeAnimation = Tween<double>(
@@ -92,12 +92,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
       end: 1.0,
     ).animate(CurvedAnimation(
       parent: _fadeController,
-      curve: Curves.easeOut,
+      curve: Curves.easeOutCubic,
     ));
     
     _pulseAnimation = Tween<double>(
       begin: 1.0,
-      end: 1.2,
+      end: 1.15,
     ).animate(CurvedAnimation(
       parent: _pulseController,
       curve: Curves.easeInOut,
@@ -117,35 +117,29 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
     _pulseController.repeat(reverse: true);
   }
   
-  Future<void> _loadPhoneNumber() async {
-    if (widget.phoneNumber != null && widget.phoneNumber!.isNotEmpty) {
-      _phoneController.text = widget.phoneNumber!;
-      
-      if (_isValidPhoneNumber(widget.phoneNumber!)) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _sendOtp();
-        });
-      }
+  Future<void> _loadPhoneNumberAndSendOtp() async {
+    // Récupérer le numéro de téléphone sauvegardé
+    String? savedPhone = await _userService.getSavedPhoneNumber();
+    
+    if (savedPhone != null && savedPhone.isNotEmpty) {
+      setState(() {
+        _phoneNumber = savedPhone;
+      });
+      // Envoyer automatiquement l'OTP
+      _sendOtp();
     } else {
-      String? savedPhone = await _userService.getSavedPhoneNumber();
-      if (savedPhone != null && savedPhone.isNotEmpty) {
-        setState(() {
-          _phoneController.text = savedPhone;
-        });
-        
-        if (_isValidPhoneNumber(savedPhone)) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _sendOtp();
-          });
-        }
-      }
+      // Si pas de numéro sauvegardé, utiliser un numéro par défaut (à modifier selon vos besoins)
+      setState(() {
+        _phoneNumber = "+212703687923"; // Numéro par défaut
+      });
+      _sendOtp();
     }
   }
   
   @override
   void dispose() {
     _otpController.dispose();
-    _phoneController.dispose();
+    _countdownTimer?.cancel();
     _slideController.dispose();
     _fadeController.dispose();
     _pulseController.dispose();
@@ -156,79 +150,65 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
   // Fonction pour déconnecter et retourner à la page de connexion
   Future<void> _signOutAndReturnToLogin() async {
     try {
-      // Déconnecter l'utilisateur
       await _authService.signOut();
       
       if (mounted) {
-        // Import nécessaire pour LoginScreen
-        final loginScreen = MaterialPageRoute(
-          builder: (context) => const LoginScreen(),
-        );
-        
-        // Retourner à la page de connexion en supprimant toutes les pages précédentes
         Navigator.of(context).pushAndRemoveUntil(
-          loginScreen,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
           (route) => false,
         );
       }
     } catch (e) {
       debugPrint('Erreur lors de la déconnexion: $e');
       if (mounted) {
-        // En cas d'erreur, forcer le retour avec pop
         Navigator.of(context).popUntil((route) => route.isFirst);
       }
     }
   }
-  
-  bool _isValidPhoneNumber(String phone) {
-    return phone.replaceAll(RegExp(r'[^0-9]'), '').length >= 8;
-  }
 
   void _startResendCountdown() {
     setState(() {
-      _resendCountdown = 60;
-      _isResending = false;
+      _resendCountdown = 120; // 2 minutes
     });
     
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted && _resendCountdown > 0) {
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_resendCountdown > 0) {
         setState(() {
           _resendCountdown--;
         });
-        _startResendCountdown();
-      } else if (mounted) {
+      } else {
+        timer.cancel();
         setState(() {
-          _isResending = true;
+          _isResending = false;
         });
       }
     });
   }
   
+  String _formatCountdown(int seconds) {
+    int minutes = seconds ~/ 60;
+    int remainingSeconds = seconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
+  
   Future<void> _sendOtp() async {
-    if (!_formKey.currentState!.validate()) return;
-    
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _isResending = true;
     });
     
-    String phoneNumber = _phoneController.text.trim();
-    
-    if (!phoneNumber.startsWith('+')) {
-      if (phoneNumber.startsWith('0')) {
-        phoneNumber = '+212' + phoneNumber.substring(1);
-      } else if (!phoneNumber.startsWith('212')) {
-        phoneNumber = '+212' + phoneNumber;
-      } else {
-        phoneNumber = '+' + phoneNumber;
-      }
+    if (_phoneNumber == null) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Numéro de téléphone non disponible';
+      });
+      return;
     }
     
     try {
-      await _userService.savePhoneNumber(phoneNumber);
-      
       String? verificationId = await _phoneAuthService.sendOtp(
-        phoneNumber: phoneNumber,
+        phoneNumber: _phoneNumber!,
         onVerificationCompleted: (credential) async {
           // Auto-verification not available for WhatsApp
         },
@@ -254,23 +234,24 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
           setState(() {
             _isLoading = false;
             _errorMessage = errorMessage;
+            _isResending = false;
           });
           _shakeController.forward().then((_) => _shakeController.reset());
         },
         onCodeSent: (String verId) {
           setState(() {
             _verificationId = verId;
-            _codeSent = true;
             _isLoading = false;
           });
           _startResendCountdown();
         },
       );
       
-      if (verificationId == null && !_codeSent) {
+      if (verificationId == null) {
         setState(() {
           _isLoading = false;
           _errorMessage = 'Échec de l\'envoi du code. Veuillez réessayer.';
+          _isResending = false;
         });
         _shakeController.forward().then((_) => _shakeController.reset());
       }
@@ -278,6 +259,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
       setState(() {
         _isLoading = false;
         _errorMessage = 'Erreur: $e';
+        _isResending = false;
       });
       _shakeController.forward().then((_) => _shakeController.reset());
     }
@@ -306,8 +288,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
       if (isVerified) {
         await _authService.set2FAVerified();
         
-        if (widget.isSetup) {
-          await _userService.enable2FA(_phoneController.text.trim());
+        if (widget.isSetup && _phoneNumber != null) {
+          await _userService.enable2FA(_phoneNumber!);
         }
         
         if (mounted) {
@@ -339,13 +321,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: widget.isSetup, // Permet de revenir seulement si c'est une configuration
+      canPop: widget.isSetup,
       onPopInvoked: (didPop) async {
         if (didPop) return;
         
-        // Si ce n'est pas une configuration mais une vérification obligatoire
         if (!widget.isSetup) {
-          // Demander confirmation avant de déconnecter
           bool? shouldSignOut = await showDialog<bool>(
             context: context,
             builder: (context) => AlertDialog(
@@ -382,11 +362,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                AppTheme.primaryColor,
-                AppTheme.secondaryColor,
-                AppTheme.accentColor.withOpacity(0.8),
+                Colors.blue[900]!.withOpacity(0.9),
+                Colors.blue[700]!.withOpacity(0.8),
+                Colors.blue[500]!.withOpacity(0.7),
+                Colors.white.withOpacity(0.9),
               ],
-              stops: const [0.0, 0.6, 1.0],
+              stops: const [0.0, 0.3, 0.7, 1.0],
             ),
           ),
           child: SafeArea(
@@ -405,11 +386,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
                         child: IconButton(
                           icon: const Icon(Icons.arrow_back, color: Colors.white),
                           onPressed: () {
-                            // Si c'est une configuration 2FA, on peut revenir
                             if (widget.isSetup) {
                               Navigator.pop(context);
                             } else {
-                              // Si c'est une vérification obligatoire, on déconnecte l'utilisateur
                               _signOutAndReturnToLogin();
                             }
                           },
@@ -427,7 +406,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
                         ),
                       ),
                       const Spacer(),
-                      const SizedBox(width: 48), // Balance
+                      const SizedBox(width: 48),
                     ],
                   ),
                 ),
@@ -440,410 +419,407 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
                       child: SingleChildScrollView(
                         child: Padding(
                           padding: const EdgeInsets.all(24.0),
-                          child: Form(
-                            key: _formKey,
-                            child: Column(
-                              children: [
-                                const SizedBox(height: 20),
-                                
-                                // Icône principale avec animation
-                                AnimatedBuilder(
-                                  animation: _pulseAnimation,
-                                  builder: (context, child) {
-                                    return Transform.scale(
-                                      scale: _codeSent ? 1.0 : _pulseAnimation.value,
-                                      child: Container(
-                                        width: 120,
-                                        height: 120,
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(0.2),
-                                              blurRadius: 20,
-                                              offset: const Offset(0, 10),
-                                            ),
+                          child: Column(
+                            children: [
+                              const SizedBox(height: 20),
+                              
+                              // Icône principale avec animation (similaire à login)
+                              AnimatedBuilder(
+                                animation: Listenable.merge([_pulseAnimation]),
+                                builder: (context, child) {
+                                  return Transform.scale(
+                                    scale: _pulseAnimation.value,
+                                    child: Container(
+                                      width: 80,
+                                      height: 80,
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Colors.white.withOpacity(0.9),
+                                            Colors.white.withOpacity(0.7),
                                           ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
                                         ),
-                                        child: Icon(
-                                          _codeSent 
-                                              ? Icons.sms_outlined 
-                                              : Icons.phone_android,
-                                          size: 60,
-                                          color: AppTheme.primaryColor,
-                                        ),
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.blue.withOpacity(0.3),
+                                            blurRadius: 20,
+                                            offset: const Offset(0, 10),
+                                          ),
+                                          BoxShadow(
+                                            color: Colors.blue.withOpacity(0.2),
+                                            blurRadius: 15,
+                                            offset: const Offset(0, 5),
+                                          ),
+                                        ],
                                       ),
-                                    );
-                                  },
-                                ),
-                                
-                                const SizedBox(height: 32),
-                                
-                                // Titre
-                                Text(
-                                  _codeSent 
-                                      ? 'Entrez le code de vérification'
-                                      : 'Authentification à deux facteurs',
-                                  style: const TextStyle(
-                                    fontSize: 26,
-                                    fontWeight: FontWeight.bold,
+                                      child: Icon(
+                                        Icons.sms_outlined,
+                                        size: 40,
+                                        color: Colors.blue[700],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              
+                              const SizedBox(height: 15),
+                              
+                              // Éléments décoratifs modernes (similaire à login)
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    width: 50,
+                                    height: 3,
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.transparent,
+                                          Colors.blue.withOpacity(0.6),
+                                          Colors.white.withOpacity(0.4),
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                  ),
+                                  Container(
+                                    margin: const EdgeInsets.symmetric(horizontal: 15),
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.blue.withOpacity(0.2),
+                                          Colors.white.withOpacity(0.1),
+                                        ],
+                                      ),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white.withOpacity(0.3),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Icon(
+                                      Icons.verified_user,
+                                      size: 20,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  Container(
+                                    width: 50,
+                                    height: 3,
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          Colors.white.withOpacity(0.4),
+                                          Colors.blue.withOpacity(0.6),
+                                          Colors.transparent,
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              
+                              const SizedBox(height: 20),
+                              
+                              // Titre
+                              ShaderMask(
+                                shaderCallback: (bounds) => LinearGradient(
+                                  colors: [
+                                    Colors.white,
+                                    Colors.white.withOpacity(0.8),
+                                  ],
+                                ).createShader(bounds),
+                                child: const Text(
+                                  'Code de vérification',
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w300,
                                     color: Colors.white,
+                                    letterSpacing: 1.5,
                                   ),
                                   textAlign: TextAlign.center,
                                 ),
-                                
-                                const SizedBox(height: 16),
-                                
-                                // Sous-titre
-                                Text(
-                                  _codeSent
-                                      ? 'Nous avons envoyé un code WhatsApp au\n${_phoneController.text}'
-                                      : 'Pour votre sécurité, nous devons vérifier votre identité via WhatsApp',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.white70,
-                                    height: 1.5,
-                                  ),
-                                  textAlign: TextAlign.center,
+                              ),
+                              
+                              const SizedBox(height: 8),
+                              
+                              // Sous-titre avec numéro
+                              Text(
+                                'Code envoyé via WhatsApp au\n${_phoneNumber ?? 'votre numéro'}',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.white70,
+                                  height: 1.5,
+                                  fontWeight: FontWeight.w300,
                                 ),
-                                
-                                const SizedBox(height: 40),
-                                
-                                // Contenu principal
-                                AnimatedBuilder(
-                                  animation: _shakeAnimation,
-                                  builder: (context, child) {
-                                    return Transform.translate(
-                                      offset: _shakeController.isAnimating
-                                          ? Offset(_shakeAnimation.value, 0)
-                                          : Offset.zero,
-                                      child: Container(
-                                        padding: const EdgeInsets.all(24),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(24),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(0.1),
-                                              blurRadius: 20,
-                                              offset: const Offset(0, 10),
-                                            ),
-                                          ],
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                                          children: [
-                                            // Message d'erreur
-                                            if (_errorMessage != null) ...[
-                                              Container(
-                                                padding: const EdgeInsets.all(16),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.red.shade50,
-                                                  borderRadius: BorderRadius.circular(12),
-                                                  border: Border.all(
-                                                    color: Colors.red.shade200,
-                                                  ),
-                                                ),
-                                                child: Row(
-                                                  children: [
-                                                    Icon(
-                                                      Icons.error_outline,
-                                                      color: Colors.red.shade700,
-                                                    ),
-                                                    const SizedBox(width: 12),
-                                                    Expanded(
-                                                      child: Text(
-                                                        _errorMessage!,
-                                                        style: TextStyle(
-                                                          color: Colors.red.shade700,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              const SizedBox(height: 24),
-                                            ],
-                                            
-                                            // Saisie du numéro ou du code
-                                            if (!_codeSent) ...[
-                                              // Numéro de téléphone
-                                              TextFormField(
-                                                controller: _phoneController,
-                                                keyboardType: TextInputType.phone,
-                                                decoration: InputDecoration(
-                                                  labelText: 'Numéro WhatsApp',
-                                                  hintText: '06XXXXXXXX ou +212XXXXXXXX',
-                                                  prefixIcon: const Icon(
-                                                    Icons.phone,
-                                                    color: AppTheme.primaryColor,
-                                                  ),
-                                                  filled: true,
-                                                  fillColor: Colors.grey[50],
-                                                  border: OutlineInputBorder(
-                                                    borderRadius: BorderRadius.circular(16),
-                                                    borderSide: BorderSide.none,
-                                                  ),
-                                                  enabledBorder: OutlineInputBorder(
-                                                    borderRadius: BorderRadius.circular(16),
-                                                    borderSide: BorderSide(
-                                                      color: Colors.grey[300]!,
-                                                      width: 1,
-                                                    ),
-                                                  ),
-                                                  focusedBorder: OutlineInputBorder(
-                                                    borderRadius: BorderRadius.circular(16),
-                                                    borderSide: const BorderSide(
-                                                      color: AppTheme.primaryColor,
-                                                      width: 2,
-                                                    ),
-                                                  ),
-                                                ),
-                                                validator: (value) {
-                                                  if (value == null || value.isEmpty) {
-                                                    return 'Veuillez entrer un numéro de téléphone';
-                                                  }
-                                                  if (!_isValidPhoneNumber(value)) {
-                                                    return 'Numéro de téléphone invalide';
-                                                  }
-                                                  return null;
-                                                },
-                                              ),
-                                              
-                                              const SizedBox(height: 16),
-                                              
-                                              // Note WhatsApp
-                                              Container(
-                                                padding: const EdgeInsets.all(12),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.green.withOpacity(0.1),
-                                                  borderRadius: BorderRadius.circular(12),
-                                                  border: Border.all(
-                                                    color: Colors.green.withOpacity(0.3),
-                                                  ),
-                                                ),
-                                                child: Row(
-                                                  children: [
-                                                    const Icon(
-                                                      Icons.info_outline,
-                                                      color: Colors.green,
-                                                      size: 20,
-                                                    ),
-                                                    const SizedBox(width: 12),
-                                                    Expanded(
-                                                      child: Text(
-                                                        'Assurez-vous que ce numéro est actif sur WhatsApp.',
-                                                        style: TextStyle(
-                                                          color: Colors.green[800],
-                                                          fontSize: 14,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ] else ...[
-                                              // Code PIN
-                                              const Text(
-                                                'Code de vérification',
-                                                style: TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: AppTheme.primaryColor,
-                                                ),
-                                                textAlign: TextAlign.center,
-                                              ),
-                                              const SizedBox(height: 20),
-                                              
-                                              PinCodeTextField(
-                                                appContext: context,
-                                                length: 6,
-                                                obscureText: false,
-                                                animationType: AnimationType.fade,
-                                                controller: _otpController,
-                                                keyboardType: TextInputType.number,
-                                                pinTheme: PinTheme(
-                                                  shape: PinCodeFieldShape.box,
-                                                  borderRadius: BorderRadius.circular(12),
-                                                  fieldHeight: 56,
-                                                  fieldWidth: 44,
-                                                  activeFillColor: Colors.white,
-                                                  inactiveFillColor: Colors.grey[100],
-                                                  selectedFillColor: AppTheme.accentColor.withOpacity(0.3),
-                                                  activeColor: AppTheme.primaryColor,
-                                                  inactiveColor: Colors.grey[400],
-                                                  selectedColor: AppTheme.primaryColor,
-                                                  borderWidth: 2,
-                                                ),
-                                                enableActiveFill: true,
-                                                onCompleted: (v) {
-                                                  _verifyOtp();
-                                                },
-                                                onChanged: (value) {
-                                                  if (_errorMessage != null) {
-                                                    setState(() {
-                                                      _errorMessage = null;
-                                                    });
-                                                  }
-                                                },
-                                              ),
-                                              
-                                              const SizedBox(height: 24),
-                                              
-                                              // Renvoyer le code
-                                              Center(
-                                                child: _isResending
-                                                    ? TextButton.icon(
-                                                        onPressed: _sendOtp,
-                                                        icon: const Icon(
-                                                          Icons.refresh,
-                                                          color: AppTheme.primaryColor,
-                                                        ),
-                                                        label: const Text(
-                                                          'Renvoyer le code',
-                                                          style: TextStyle(
-                                                            color: AppTheme.primaryColor,
-                                                            fontWeight: FontWeight.bold,
-                                                          ),
-                                                        ),
-                                                      )
-                                                    : Text(
-                                                        'Renvoyer le code dans $_resendCountdown s',
-                                                        style: TextStyle(
-                                                          color: Colors.grey[600],
-                                                        ),
-                                                      ),
-                                              ),
-                                            ],
-                                            
-                                            const SizedBox(height: 24),
-                                            
-                                            // Bouton d'action principal
+                                textAlign: TextAlign.center,
+                              ),
+                              
+                              const SizedBox(height: 25),
+                              
+                              // Contenu principal avec design moderne
+                              AnimatedBuilder(
+                                animation: _shakeAnimation,
+                                builder: (context, child) {
+                                  return Transform.translate(
+                                    offset: _shakeController.isAnimating
+                                        ? Offset(_shakeAnimation.value, 0)
+                                        : Offset.zero,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(28),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.95),
+                                        borderRadius: BorderRadius.circular(28),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.1),
+                                            blurRadius: 30,
+                                            offset: const Offset(0, 15),
+                                          ),
+                                          BoxShadow(
+                                            color: Colors.purple.withOpacity(0.1),
+                                            blurRadius: 40,
+                                            offset: const Offset(0, 25),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                                        children: [
+                                          // Message d'erreur
+                                          if (_errorMessage != null) ...[
                                             Container(
-                                              height: 56,
+                                              padding: const EdgeInsets.all(16),
                                               decoration: BoxDecoration(
+                                                color: Colors.red.shade50,
                                                 borderRadius: BorderRadius.circular(16),
-                                                gradient: const LinearGradient(
-                                                  colors: [
-                                                    AppTheme.primaryColor,
-                                                    AppTheme.secondaryColor,
-                                                  ],
+                                                border: Border.all(
+                                                  color: Colors.red.shade200,
                                                 ),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: AppTheme.primaryColor.withOpacity(0.3),
-                                                    blurRadius: 10,
-                                                    offset: const Offset(0, 4),
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  Icon(
+                                                    Icons.error_outline,
+                                                    color: Colors.red.shade700,
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: Text(
+                                                      _errorMessage!,
+                                                      style: TextStyle(
+                                                        color: Colors.red.shade700,
+                                                      ),
+                                                    ),
                                                   ),
                                                 ],
                                               ),
-                                              child: ElevatedButton(
-                                                onPressed: _isLoading
-                                                    ? null
-                                                    : _codeSent
-                                                        ? _verifyOtp
-                                                        : _sendOtp,
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: Colors.transparent,
-                                                  shadowColor: Colors.transparent,
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(16),
-                                                  ),
+                                            ),
+                                            const SizedBox(height: 24),
+                                          ],
+                                          
+                                          // Code PIN
+                                          const Text(
+                                            'Entrez le code à 6 chiffres',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.black87,
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                          const SizedBox(height: 20),
+                                          
+                                          PinCodeTextField(
+                                            appContext: context,
+                                            length: 6,
+                                            obscureText: false,
+                                            animationType: AnimationType.fade,
+                                            controller: _otpController,
+                                            keyboardType: TextInputType.number,
+                                            pinTheme: PinTheme(
+                                              shape: PinCodeFieldShape.box,
+                                              borderRadius: BorderRadius.circular(12),
+                                              fieldHeight: 56,
+                                              fieldWidth: 44,
+                                              activeFillColor: Colors.white,
+                                              inactiveFillColor: Colors.grey[50],
+                                              selectedFillColor: Colors.blue[50],
+                                              activeColor: Colors.blue[600]!,
+                                              inactiveColor: Colors.grey[400],
+                                              selectedColor: Colors.blue[600]!,
+                                              borderWidth: 2,
+                                            ),
+                                            enableActiveFill: true,
+                                            onCompleted: (v) {
+                                              _verifyOtp();
+                                            },
+                                            onChanged: (value) {
+                                              if (_errorMessage != null) {
+                                                setState(() {
+                                                  _errorMessage = null;
+                                                });
+                                              }
+                                            },
+                                          ),
+                                          
+                                          const SizedBox(height: 24),
+                                          
+                                          // Timer et bouton renvoyer
+                                          if (_resendCountdown > 0) ...[
+                                            Container(
+                                              padding: const EdgeInsets.all(16),
+                                              decoration: BoxDecoration(
+                                                gradient: LinearGradient(
+                                                  colors: [
+                                                    Colors.blue[50]!,
+                                                    Colors.blue[100]!,
+                                                  ],
                                                 ),
-                                                child: _isLoading
-                                                    ? const SizedBox(
-                                                        width: 24,
-                                                        height: 24,
-                                                        child: CircularProgressIndicator(
-                                                          color: Colors.white,
-                                                          strokeWidth: 2,
-                                                        ),
-                                                      )
-                                                    : Text(
-                                                        _codeSent ? 'Vérifier' : 'Envoyer le code',
-                                                        style: const TextStyle(
-                                                          fontSize: 16,
-                                                          fontWeight: FontWeight.bold,
-                                                          color: Colors.white,
-                                                        ),
-                                                      ),
+                                                borderRadius: BorderRadius.circular(16),
+                                                border: Border.all(
+                                                  color: Colors.blue[200]!,
+                                                  width: 1,
+                                                ),
+                                              ),
+                                              child: Row(
+                                                mainAxisAlignment: MainAxisAlignment.center,
+                                                children: [
+                                                  Icon(
+                                                    Icons.timer,
+                                                    color: Colors.blue[600],
+                                                    size: 20,
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Text(
+                                                    'Renvoyer dans ${_formatCountdown(_resendCountdown)}',
+                                                    style: TextStyle(
+                                                      color: Colors.blue[600],
+                                                      fontWeight: FontWeight.w600,
+                                                      fontSize: 16,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
-                                            
-                                            // Changer de numéro (uniquement si code envoyé)
-                                            if (_codeSent) ...[
-                                              const SizedBox(height: 16),
-                                              TextButton.icon(
-                                                onPressed: () {
-                                                  setState(() {
-                                                    _codeSent = false;
-                                                    _otpController.clear();
-                                                  });
-                                                },
-                                                icon: const Icon(
-                                                  Icons.arrow_back,
-                                                  size: 16,
-                                                  color: AppTheme.primaryColor,
-                                                ),
-                                                label: const Text(
-                                                  'Changer de numéro',
-                                                  style: TextStyle(
-                                                    color: AppTheme.primaryColor,
-                                                  ),
+                                          ] else ...[
+                                            // Bouton renvoyer
+                                            OutlinedButton.icon(
+                                              onPressed: _isResending ? null : _sendOtp,
+                                              icon: _isResending
+                                                  ? SizedBox(
+                                                      width: 16,
+                                                      height: 16,
+                                                      child: CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: Colors.blue[600],
+                                                      ),
+                                                    )
+                                                  : Icon(
+                                                      Icons.refresh,
+                                                      color: Colors.blue[600],
+                                                    ),
+                                              label: Text(
+                                                _isResending ? 'Envoi en cours...' : 'Renvoyer le code',
+                                                style: TextStyle(
+                                                  color: Colors.blue[600],
+                                                  fontWeight: FontWeight.w600,
                                                 ),
                                               ),
-                                            ],
+                                              style: OutlinedButton.styleFrom(
+                                                side: BorderSide(
+                                                  color: Colors.blue[600]!,
+                                                  width: 2,
+                                                ),
+                                                padding: const EdgeInsets.symmetric(
+                                                  vertical: 12,
+                                                  horizontal: 20,
+                                                ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                              ),
+                                            ),
                                           ],
-                                        ),
+                                          
+                                          const SizedBox(height: 24),
+                                          
+                                          // Bouton de vérification
+                                          Container(
+                                            height: 58,
+                                            decoration: BoxDecoration(
+                                              borderRadius: BorderRadius.circular(18),
+                                              gradient: LinearGradient(
+                                                colors: [
+                                                  Colors.blue[600]!,
+                                                  Colors.blue[500]!,
+                                                  Colors.white.withOpacity(0.9),
+                                                ],
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.blue.withOpacity(0.4),
+                                                  blurRadius: 15,
+                                                  offset: const Offset(0, 8),
+                                                ),
+                                              ],
+                                            ),
+                                            child: ElevatedButton(
+                                              onPressed: _isLoading ? null : _verifyOtp,
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.transparent,
+                                                shadowColor: Colors.transparent,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(18),
+                                                ),
+                                              ),
+                                              child: _isLoading
+                                                  ? const SizedBox(
+                                                      width: 24,
+                                                      height: 24,
+                                                      child: CircularProgressIndicator(
+                                                        color: Colors.white,
+                                                        strokeWidth: 2.5,
+                                                      ),
+                                                    )
+                                                  : const Row(
+                                                      mainAxisAlignment: MainAxisAlignment.center,
+                                                      children: [
+                                                        Icon(
+                                                          Icons.verified_user,
+                                                          color: Colors.white,
+                                                          size: 22,
+                                                        ),
+                                                        SizedBox(width: 10),
+                                                        Text(
+                                                          'Vérifier',
+                                                          style: TextStyle(
+                                                            fontSize: 18,
+                                                            fontWeight: FontWeight.w600,
+                                                            color: Colors.white,
+                                                            letterSpacing: 0.5,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    );
-                                  },
-                                ),
-                                
-                                const SizedBox(height: 32),
-                                
-                                // Informations de sécurité
-                                Container(
-                                  padding: const EdgeInsets.all(20),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: Colors.white.withOpacity(0.3),
                                     ),
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      const Icon(
-                                        Icons.security,
-                                        color: Colors.white,
-                                        size: 24,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      const Text(
-                                        'Authentification sécurisée',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      const Text(
-                                        'La 2FA protège votre compte même si votre mot de passe est compromis. Ce processus est obligatoire pour votre sécurité.',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.white70,
-                                          height: 1.5,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
+                                  );
+                                },
+                              ),
+                              
+                              const SizedBox(height: 20),
+                            ],
                           ),
                         ),
                       ),

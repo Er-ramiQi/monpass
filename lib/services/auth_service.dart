@@ -27,7 +27,7 @@ class AuthService {
       return await _userService.is2FAEnabled();
     } catch (e) {
       debugPrint('Error checking 2FA: $e');
-      return false;
+      return true; // Par défaut activée
     }
   }
 
@@ -81,14 +81,26 @@ class AuthService {
         await _secureStorage.write('user_id', user.uid);
         await _secureStorage.write('user_email', user.email ?? '');
         await _secureStorage.write('is_logged_in', 'true');
-        await _secureStorage.write('2fa_verified', 'false');
+        await _secureStorage.write('2fa_verified', 'false'); // Toujours false après connexion
         await _secureStorage.write('last_active', DateTime.now().millisecondsSinceEpoch.toString());
         
-        // Initialiser le mot de passe maître (dans une vraie app, ce ne serait pas le même)
+        // Initialiser le mot de passe maître
         await _secureStorage.setMasterPassword(password);
         
-        // Initialize the user profile
+        // Initialize the user profile et s'assurer que la 2FA est activée
         await _userService.getUserProfile();
+        
+        // S'assurer qu'il y a un numéro de téléphone par défaut
+        String? savedPhone = await _userService.getSavedPhoneNumber();
+        if (savedPhone == null || savedPhone.isEmpty) {
+          await _userService.savePhoneNumber("+212703687923");
+        }
+        
+        // Activer la 2FA par défaut si pas encore fait
+        bool is2FAEnabled = await _userService.is2FAEnabled();
+        if (!is2FAEnabled) {
+          await _userService.enable2FA(savedPhone ?? "+212703687923");
+        }
       }
       
       return user;
@@ -111,13 +123,13 @@ class AuthService {
         await _secureStorage.write('user_id', user.uid);
         await _secureStorage.write('user_email', user.email ?? '');
         await _secureStorage.write('is_logged_in', 'true');
-        await _secureStorage.write('2fa_verified', 'true');
+        await _secureStorage.write('2fa_verified', 'false'); // Nécessite vérification 2FA même après inscription
         await _secureStorage.write('last_active', DateTime.now().millisecondsSinceEpoch.toString());
         
         // Initialiser le mot de passe maître
         await _secureStorage.setMasterPassword(password);
         
-        // Initialize user profile
+        // Initialize user profile avec 2FA activée par défaut
         await _userService.createInitialProfile(user);
       }
       

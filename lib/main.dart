@@ -118,7 +118,7 @@ class _MyAppState extends State<MyApp> {
                 end: Alignment.bottomRight,
                 colors: [
                   const Color(0xFF667eea),
-                  const Color(0xFF764ba2),
+                  const Color.fromARGB(255, 75, 105, 162),
                 ],
               ),
             ),
@@ -175,7 +175,7 @@ class _MyAppState extends State<MyApp> {
                   end: Alignment.bottomRight,
                   colors: [
                     const Color(0xFF667eea),
-                    const Color(0xFF764ba2),
+                    const Color.fromARGB(255, 75, 105, 162),
                   ],
                 ),
               ),

@@ -94,7 +94,7 @@ class _AuthGateState extends State<AuthGate> {
               end: Alignment.bottomRight,
               colors: [
                 const Color(0xFF667eea),
-                const Color(0xFF764ba2),
+                const Color.fromARGB(255, 75, 94, 162),
               ],
             ),
           ),
