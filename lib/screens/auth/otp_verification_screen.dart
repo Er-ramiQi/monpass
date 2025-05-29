@@ -34,7 +34,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
   
   bool _isLoading = false;
   bool _isResending = false;
-  int _resendCountdown = 120; // 2 minutes = 120 secondes
+  int _resendCountdown = 60; // 1 minute = 60 secondes
   String? _errorMessage;
   String? _verificationId;
   String? _phoneNumber;
@@ -168,7 +168,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
 
   void _startResendCountdown() {
     setState(() {
-      _resendCountdown = 120; // 2 minutes
+      _resendCountdown = 60; // 1 minute
     });
     
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -186,9 +186,18 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
   }
   
   String _formatCountdown(int seconds) {
-    int minutes = seconds ~/ 60;
-    int remainingSeconds = seconds % 60;
-    return '${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
+    return '${seconds.toString().padLeft(2, '0')}s';
+  }
+  
+  // Fonction pour masquer le numéro de téléphone, ne montrant que les 2 derniers chiffres
+  String _maskPhoneNumber(String phoneNumber) {
+    if (phoneNumber.length < 4) return phoneNumber;
+    
+    String visiblePart = phoneNumber.substring(phoneNumber.length - 2);
+    String maskedPart = '*' * (phoneNumber.length - 4);
+    String countryCode = phoneNumber.startsWith('+') ? phoneNumber.substring(0, 4) : '';
+    
+    return '$countryCode$maskedPart$visiblePart';
   }
   
   Future<void> _sendOtp() async {
@@ -423,7 +432,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
                             children: [
                               const SizedBox(height: 20),
                               
-                              // Icône principale avec animation (similaire à login)
+                              // Icône principale avec animation
                               AnimatedBuilder(
                                 animation: Listenable.merge([_pulseAnimation]),
                                 builder: (context, child) {
@@ -467,7 +476,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
                               
                               const SizedBox(height: 15),
                               
-                              // Éléments décoratifs modernes (similaire à login)
+                              // Éléments décoratifs modernes
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
@@ -548,9 +557,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
                               
                               const SizedBox(height: 8),
                               
-                              // Sous-titre avec numéro
+                              // Sous-titre avec numéro masqué
                               Text(
-                                'Code envoyé via WhatsApp au\n${_phoneNumber ?? 'votre numéro'}',
+                                'Code envoyé via WhatsApp au\n${_phoneNumber != null ? _maskPhoneNumber(_phoneNumber!) : 'votre numéro'}',
                                 style: const TextStyle(
                                   fontSize: 14,
                                   color: Colors.white70,
@@ -648,10 +657,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
                                               fieldHeight: 56,
                                               fieldWidth: 44,
                                               activeFillColor: Colors.white,
-                                              inactiveFillColor: Colors.grey[50],
+                                              inactiveFillColor: Colors.white,
                                               selectedFillColor: Colors.blue[50],
                                               activeColor: Colors.blue[600]!,
-                                              inactiveColor: Colors.grey[400],
+                                              inactiveColor: Colors.grey[300],
                                               selectedColor: Colors.blue[600]!,
                                               borderWidth: 2,
                                             ),
