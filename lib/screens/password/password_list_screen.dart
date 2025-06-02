@@ -18,7 +18,8 @@ class PasswordListScreen extends StatefulWidget {
   _PasswordListScreenState createState() => _PasswordListScreenState();
 }
 
-class _PasswordListScreenState extends State<PasswordListScreen> with SingleTickerProviderStateMixin {
+class _PasswordListScreenState extends State<PasswordListScreen> 
+    with TickerProviderStateMixin {
   final AuthService _authService = AuthService();
   late SecureStorageService _secureStorage;
   late PasswordService _passwordService;
@@ -27,45 +28,93 @@ class _PasswordListScreenState extends State<PasswordListScreen> with SingleTick
   List<PasswordModel> _filteredPasswords = [];
   bool _isLoading = true;
   bool _isSearching = false;
-  bool _showOnlyFavorites = false;
   String _searchQuery = '';
   
   // Sort options
-  String _sortBy = 'title'; // 'title', 'username', 'created', 'updated'
+  String _sortBy = 'title';
   bool _sortAscending = true;
   
-  // Tab controller for categories
+  // Tab controller for categories - NOUVELLES CATÉGORIES UTILES
   late TabController _tabController;
-  final List<String> _categories = ['Tous', 'Sites web', 'Applications', 'Finances', 'Favoris'];
+  final List<String> _categories = ['Tous', 'Récents', 'Favoris', 'Sécurité forte', 'À améliorer'];
   
-  // Animation
-  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
-  bool _isInitialLoad = true;
+  // Animation controllers
+  late AnimationController _fadeController;
+  late AnimationController _slideController;
+  late AnimationController _pulseController;
+  
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _pulseAnimation;
   
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: _categories.length, vsync: this);
     _tabController.addListener(_handleTabChange);
+    _initAnimations();
     _initServices();
+  }
+  
+  void _initAnimations() {
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    
+    _slideController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeOut,
+    ));
+    
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _slideController,
+      curve: Curves.easeOut,
+    ));
+    
+    _pulseAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.02,
+    ).animate(CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.easeInOut,
+    ));
+    
+    // Start animations
+    _fadeController.forward();
+    _slideController.forward();
+    _pulseController.repeat(reverse: true);
   }
   
   @override
   void dispose() {
     _tabController.removeListener(_handleTabChange);
     _tabController.dispose();
+    _fadeController.dispose();
+    _slideController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
   
   void _handleTabChange() {
     if (_tabController.indexIsChanging) {
       setState(() {
-        if (_tabController.index == _categories.length - 1) {
-          // "Favoris" tab
-          _showOnlyFavorites = true;
-        } else {
-          _showOnlyFavorites = false;
-        }
         _applyFilters();
       });
     }
@@ -73,12 +122,10 @@ class _PasswordListScreenState extends State<PasswordListScreen> with SingleTick
   
   Future<void> _initServices() async {
     _secureStorage = SecureStorageService();
-    // Simulate master password entry (in production, prompt user)
     await _secureStorage.setMasterPassword('masterpassword');
     
     String? userId = await _authService.getUserId();
     if (userId == null) {
-      // Redirect to login if no user ID
       if (mounted) {
         Navigator.of(context).pushReplacementNamed('/login');
       }
@@ -100,15 +147,28 @@ class _PasswordListScreenState extends State<PasswordListScreen> with SingleTick
         _passwords = passwords;
         _applyFilters();
         _isLoading = false;
-        _isInitialLoad = false;
       });
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _isInitialLoad = false;
       });
-      _showErrorSnackBar('Erreur de chargement des mots de passe');
+      _showErrorSnackBar('Erreur de chargement');
     }
+  }
+  
+  // Calcul de la force du mot de passe
+  int _calculatePasswordStrength(String password) {
+    if (password.isEmpty) return 0;
+    
+    int score = 0;
+    if (password.length >= 12) score += 25;
+    if (password.length >= 16) score += 25;
+    if (RegExp(r'[A-Z]').hasMatch(password)) score += 15;
+    if (RegExp(r'[a-z]').hasMatch(password)) score += 15;
+    if (RegExp(r'[0-9]').hasMatch(password)) score += 10;
+    if (RegExp(r'[!@#$%^&*(),.?":{}|<>]').hasMatch(password)) score += 10;
+    
+    return score > 100 ? 100 : score;
   }
   
   void _applyFilters() {
@@ -119,34 +179,33 @@ class _PasswordListScreenState extends State<PasswordListScreen> with SingleTick
       filtered = filtered.where((password) {
         return password.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
                password.username.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-               password.website.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-               password.notes.toLowerCase().contains(_searchQuery.toLowerCase());
+               password.website.toLowerCase().contains(_searchQuery.toLowerCase());
       }).toList();
     }
     
-    // Filter by favorites
-    if (_showOnlyFavorites) {
-      filtered = filtered.where((password) => password.isFavorite).toList();
-    }
-    
-    // Filter by category (for tabs other than "All" and "Favorites")
-    if (_tabController.index > 0 && _tabController.index < _categories.length - 1) {
-      String category = _categories[_tabController.index].toLowerCase();
-      filtered = filtered.where((password) {
-        if (category == 'sites web') {
-          return password.website.isNotEmpty;
-        } else if (category == 'applications') {
-          return password.title.toLowerCase().contains('app') || 
-                 password.notes.toLowerCase().contains('app');
-        } else if (category == 'finances') {
-          return password.title.toLowerCase().contains('bank') || 
-                 password.title.toLowerCase().contains('banque') ||
-                 password.title.toLowerCase().contains('carte') ||
-                 password.title.toLowerCase().contains('crédit') ||
-                 password.title.toLowerCase().contains('paiement');
-        }
-        return true;
-      }).toList();
+    // Filter by category - NOUVELLES CATÉGORIES
+    switch (_tabController.index) {
+      case 0: // Tous
+        break;
+      case 1: // Récents (derniers 7 jours)
+        final now = DateTime.now();
+        filtered = filtered.where((password) {
+          return now.difference(password.updatedAt).inDays <= 7;
+        }).toList();
+        break;
+      case 2: // Favoris
+        filtered = filtered.where((password) => password.isFavorite).toList();
+        break;
+      case 3: // Sécurité forte (score >= 70)
+        filtered = filtered.where((password) {
+          return _calculatePasswordStrength(password.password) >= 70;
+        }).toList();
+        break;
+      case 4: // À améliorer (score < 70)
+        filtered = filtered.where((password) {
+          return _calculatePasswordStrength(password.password) < 70;
+        }).toList();
+        break;
     }
     
     // Sort passwords
@@ -166,7 +225,7 @@ class _PasswordListScreenState extends State<PasswordListScreen> with SingleTick
       } else if (_sortBy == 'updated') {
         return _sortAscending 
             ? a.updatedAt.compareTo(b.updatedAt)
-            : b.updatedAt.compareTo(a.createdAt);
+            : b.updatedAt.compareTo(a.updatedAt);
       }
       return 0;
     });
@@ -182,6 +241,11 @@ class _PasswordListScreenState extends State<PasswordListScreen> with SingleTick
         content: Text(message),
         backgroundColor: AppTheme.errorColor,
         behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.only(
+          bottom: MediaQuery.of(context).size.height * 0.1,
+          left: 16,
+          right: 16,
+        ),
       ),
     );
   }
@@ -191,7 +255,7 @@ class _PasswordListScreenState extends State<PasswordListScreen> with SingleTick
       await _passwordService.toggleFavorite(password.id);
       _loadPasswords();
     } catch (e) {
-      _showErrorSnackBar('Erreur lors du changement de statut favori');
+      _showErrorSnackBar('Erreur favori');
     }
   }
   
@@ -199,155 +263,153 @@ class _PasswordListScreenState extends State<PasswordListScreen> with SingleTick
     try {
       bool? confirm = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Confirmer la suppression'),
-          content: Text('Voulez-vous vraiment supprimer "${password.title}"?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text('Annuler'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.errorColor,
-                foregroundColor: Colors.white,
-              ),
-              child: Text('Supprimer'),
-            ),
-          ],
-        ),
+        builder: (context) => _buildDeleteDialog(password),
       );
       
       if (confirm == true) {
         await _passwordService.deletePassword(password.id);
         _loadPasswords();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Mot de passe supprimé'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
+        _showSuccessSnackBar('Mot de passe supprimé');
       }
     } catch (e) {
-      _showErrorSnackBar('Erreur lors de la suppression');
+      _showErrorSnackBar('Erreur suppression');
     }
+  }
+  
+  Widget _buildDeleteDialog(PasswordModel password) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text('Supprimer ?'),
+      content: Text('Supprimer "${password.title}" ?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Annuler'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          child: const Text('Supprimer'),
+        ),
+      ],
+    );
   }
   
   void _copyToClipboard(String text, String label) {
     Clipboard.setData(ClipboardData(text: text));
+    _showSuccessSnackBar('$label copié');
+  }
+  
+  void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.check_circle, color: Colors.white),
-            SizedBox(width: 12),
-            Text('$label copié dans le presse-papiers'),
+            const Icon(Icons.check_circle, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            Flexible(child: Text(message)),
           ],
         ),
-        duration: Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
         backgroundColor: AppTheme.successColor,
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.only(
+          bottom: MediaQuery.of(context).size.height * 0.1,
+          left: 16,
+          right: 16,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
 
-  // Open sort options menu
   void _showSortOptions() {
     showModalBottomSheet(
       context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => Container(
-          padding: EdgeInsets.all(24),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        maxChildSize: 0.9,
+        minChildSize: 0.3,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Trier par',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+              // Handle
+              Container(
+                margin: const EdgeInsets.only(top: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              SizedBox(height: 16),
               
-              // Sort options
-              RadioListTile<String>(
-                title: Text('Titre'),
-                value: 'title',
-                groupValue: _sortBy,
-                onChanged: (value) {
-                  setState(() {
-                    _sortBy = value!;
-                  });
-                  this.setState(() {
-                    _applyFilters();
-                  });
-                },
-              ),
-              RadioListTile<String>(
-                title: Text('Nom d\'utilisateur'),
-                value: 'username',
-                groupValue: _sortBy,
-                onChanged: (value) {
-                  setState(() {
-                    _sortBy = value!;
-                  });
-                  this.setState(() {
-                    _applyFilters();
-                  });
-                },
-              ),
-              RadioListTile<String>(
-                title: Text('Date de création'),
-                value: 'created',
-                groupValue: _sortBy,
-                onChanged: (value) {
-                  setState(() {
-                    _sortBy = value!;
-                  });
-                  this.setState(() {
-                    _applyFilters();
-                  });
-                },
-              ),
-              RadioListTile<String>(
-                title: Text('Date de modification'),
-                value: 'updated',
-                groupValue: _sortBy,
-                onChanged: (value) {
-                  setState(() {
-                    _sortBy = value!;
-                  });
-                  this.setState(() {
-                    _applyFilters();
-                  });
-                },
-              ),
-              
-              Divider(),
-              
-              // Order options
-              SwitchListTile(
-                title: Text(_sortAscending ? 'Ordre croissant' : 'Ordre décroissant'),
-                value: _sortAscending,
-                onChanged: (value) {
-                  setState(() {
-                    _sortAscending = value;
-                  });
-                  this.setState(() {
-                    _applyFilters();
-                  });
-                },
-                secondary: Icon(
-                  _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
-                  color: AppTheme.primaryColor,
+              // Content
+              Expanded(
+                child: SingleChildScrollView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Trier par',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      
+                      _buildSortOption('Titre', 'title'),
+                      _buildSortOption('Utilisateur', 'username'),
+                      _buildSortOption('Création', 'created'),
+                      _buildSortOption('Modification', 'updated'),
+                      
+                      const SizedBox(height: 20),
+                      
+                      // Order toggle
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[50],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                              color: AppTheme.primaryColor,
+                            ),
+                            const SizedBox(width: 12),
+                            const Text('Ordre croissant'),
+                            const Spacer(),
+                            Switch(
+                              value: _sortAscending,
+                              onChanged: (value) {
+                                setState(() {
+                                  _sortAscending = value;
+                                  _applyFilters();
+                                });
+                                Navigator.pop(context);
+                              },
+                              activeColor: AppTheme.primaryColor,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -357,198 +419,467 @@ class _PasswordListScreenState extends State<PasswordListScreen> with SingleTick
     );
   }
   
-  @override
-  Widget build(BuildContext context) {
-    final double shortestSide = MediaQuery.of(context).size.shortestSide;
-    final bool isTablet = shortestSide >= 600;
+  Widget _buildSortOption(String label, String value) {
+    final bool isSelected = _sortBy == value;
     
-    // Determine the grid columns based on screen width
-    int gridColumns = 1;
-    if (isTablet) {
-      gridColumns = 2;
-      if (MediaQuery.of(context).size.width >= 1100) {
-        gridColumns = 3;
-      }
-    }
-    
-    return Scaffold(
-      appBar: AppBar(
-        title: _isSearching
-            ? TextField(
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Rechercher...',
-                  border: InputBorder.none,
-                  hintStyle: TextStyle(color: Colors.white70),
-                ),
-                style: TextStyle(color: Colors.white),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value;
-                    _applyFilters();
-                  });
-                },
-              )
-            : Text('Mes mots de passe'),
-        actions: [
-          // Search button
-          IconButton(
-            icon: Icon(_isSearching ? Icons.close : Icons.search),
-            tooltip: _isSearching ? 'Annuler' : 'Rechercher',
-            onPressed: () {
-              setState(() {
-                _isSearching = !_isSearching;
-                if (!_isSearching) {
-                  _searchQuery = '';
-                  _applyFilters();
-                }
-              });
-            },
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _sortBy = value;
+          _applyFilters();
+        });
+        Navigator.pop(context);
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected ? AppTheme.primaryColor.withOpacity(0.1) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppTheme.primaryColor : Colors.grey[200]!,
           ),
-          
-          // Sort button
-          IconButton(
-            icon: Icon(Icons.sort),
-            tooltip: 'Trier',
-            onPressed: _showSortOptions,
-          ),
-          
-          // Generate password button
-          IconButton(
-            icon: Icon(Icons.password),
-            tooltip: 'Générer mot de passe',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => PasswordGeneratorScreen(),
-                ),
-              );
-            },
-          ),
-          
-          // Settings button
-          IconButton(
-            icon: Icon(Icons.settings),
-            tooltip: 'Paramètres',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => SettingsScreen(),
-                ),
-              );
-            },
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          isScrollable: true,
-          tabs: _categories.map((category) => Tab(text: category)).toList(),
         ),
-      ),
-      body: _isLoading
-          ? Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                // Statistics banner
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  color: AppTheme.accentColor.withOpacity(0.2),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildStatistic(
-                        count: _passwords.length,
-                        label: 'Total',
-                        icon: Icons.vpn_key,
-                      ),
-                      _buildStatistic(
-                        count: _passwords.where((p) => p.isFavorite).length,
-                        label: 'Favoris',
-                        icon: Icons.star,
-                      ),
-                      _buildStatistic(
-                        count: _passwords.where((p) => p.website.isNotEmpty).length,
-                        label: 'Sites web',
-                        icon: Icons.language,
-                      ),
-                    ],
-                  ),
-                ),
-                
-                // Password list
-                Expanded(
-                  child: _filteredPasswords.isEmpty
-                      ? _buildEmptyState()
-                      : Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: isTablet
-                              ? GridView.builder(
-                                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: gridColumns,
-                                    childAspectRatio: 2.5,
-                                    crossAxisSpacing: 8,
-                                    mainAxisSpacing: 8,
-                                  ),
-                                  itemCount: _filteredPasswords.length,
-                                  itemBuilder: (context, index) {
-                                    return _buildPasswordCard(_filteredPasswords[index]);
-                                  },
-                                )
-                              : ListView.builder(
-                                  itemCount: _filteredPasswords.length,
-                                  itemBuilder: (context, index) {
-                                    return _buildPasswordCard(_filteredPasswords[index]);
-                                  },
-                                ),
-                        ),
-                ),
-              ],
-            ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Ajouter un mot de passe',
-        onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AddPasswordScreen(),
-            ),
-          );
-          if (result == true) {
-            _loadPasswords();
-          }
-        },
-        child: Icon(Icons.add),
-      ),
-    );
-  }
-  
-  Widget _buildStatistic({required int count, required String label, required IconData icon}) {
-    return Column(
-      children: [
-        Row(
+        child: Row(
           children: [
-            Icon(icon, size: 16, color: AppTheme.primaryColor),
-            SizedBox(width: 4),
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: isSelected ? AppTheme.primaryColor : Colors.transparent,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isSelected ? AppTheme.primaryColor : Colors.grey[400]!,
+                ),
+              ),
+              child: isSelected
+                  ? const Icon(Icons.check, size: 14, color: Colors.white)
+                  : null,
+            ),
+            const SizedBox(width: 12),
             Text(
-              count.toString(),
+              label,
               style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.primaryColor,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? AppTheme.primaryColor : Colors.black87,
               ),
             ),
           ],
         ),
-        SizedBox(height: 4),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final isTablet = screenSize.width > 600;
+    final horizontalPadding = isTablet ? 32.0 : 16.0;
+    
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.blue[900]!.withOpacity(0.9),
+              Colors.blue[700]!.withOpacity(0.8),
+              Colors.blue[500]!.withOpacity(0.7),
+              Colors.white.withOpacity(0.9),
+            ],
+            stops: const [0.0, 0.3, 0.7, 1.0],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Header responsive
+              Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: horizontalPadding,
+                  vertical: 16,
+                ),
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: Column(
+                    children: [
+                      // Titre principal
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.9),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.lock_rounded,
+                              size: isTablet ? 28 : 24,
+                              color: AppTheme.primaryColor,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Mes mots de passe',
+                              style: TextStyle(
+                                fontSize: isTablet ? 28 : 24,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          // Actions
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _buildActionButton(
+                                icon: _isSearching ? Icons.close : Icons.search,
+                                onPressed: () {
+                                  setState(() {
+                                    _isSearching = !_isSearching;
+                                    if (!_isSearching) {
+                                      _searchQuery = '';
+                                      _applyFilters();
+                                    }
+                                  });
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              _buildActionButton(
+                                icon: Icons.sort,
+                                onPressed: _showSortOptions,
+                              ),
+                              const SizedBox(width: 8),
+                              _buildActionButton(
+                                icon: Icons.password,
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const PasswordGeneratorScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      
+                      // Barre de recherche améliorée
+                      if (_isSearching) ...[
+                        const SizedBox(height: 16),
+                        SlideTransition(
+                          position: _slideAnimation,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.white.withOpacity(0.95),
+                                  Colors.white.withOpacity(0.9),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 5),
+                                ),
+                                BoxShadow(
+                                  color: AppTheme.primaryColor.withOpacity(0.1),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: TextField(
+                              autofocus: true,
+                              onChanged: (value) {
+                                setState(() {
+                                  _searchQuery = value;
+                                  _applyFilters();
+                                });
+                              },
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.black87,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'Rechercher vos mots de passe...',
+                                hintStyle: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 15,
+                                ),
+                                border: InputBorder.none,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 16,
+                                ),
+                                prefixIcon: Container(
+                                  margin: const EdgeInsets.all(12),
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        AppTheme.primaryColor,
+                                        AppTheme.secondaryColor,
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(
+                                    Icons.search_rounded,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                ),
+                                suffixIcon: _searchQuery.isNotEmpty
+                                    ? Container(
+                                        margin: const EdgeInsets.all(12),
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              _searchQuery = '';
+                                              _applyFilters();
+                                            });
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey[200],
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            child: Icon(
+                                              Icons.close_rounded,
+                                              color: Colors.grey[600],
+                                              size: 18,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              
+              // Statistiques responsives
+              Container(
+                margin: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                padding: EdgeInsets.all(isTablet ? 20 : 16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: IntrinsicHeight(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _buildStatistic(
+                          count: _passwords.length,
+                          label: 'Total',
+                          icon: Icons.vpn_key_rounded,
+                          color: AppTheme.primaryColor,
+                        ),
+                      ),
+                      VerticalDivider(color: Colors.grey[300], thickness: 1),
+                      Expanded(
+                        child: _buildStatistic(
+                          count: _passwords.where((p) => p.isFavorite).length,
+                          label: 'Favoris',
+                          icon: Icons.star_rounded,
+                          color: Colors.amber,
+                        ),
+                      ),
+                      VerticalDivider(color: Colors.grey[300], thickness: 1),
+                      Expanded(
+                        child: _buildStatistic(
+                          count: _passwords.where((p) => 
+                            _calculatePasswordStrength(p.password) >= 70).length,
+                          label: 'Sécurisés',
+                          icon: Icons.shield_rounded,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Tabs responsives avec indicateur fixé
+              Container(
+                margin: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                height: 50,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  indicator: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.white.withOpacity(0.9),
+                        Colors.white.withOpacity(0.8),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  indicatorPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                  labelColor: AppTheme.primaryColor,
+                  unselectedLabelColor: Colors.white.withOpacity(0.8),
+                  labelStyle: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: isTablet ? 14 : 12,
+                  ),
+                  unselectedLabelStyle: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: isTablet ? 14 : 12,
+                  ),
+                  dividerColor: Colors.transparent,
+                  tabs: _categories.map((category) => Tab(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      child: Text(
+                        category,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )).toList(),
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Liste des mots de passe
+              Expanded(
+                child: _isLoading
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(color: Colors.white),
+                            SizedBox(height: 16),
+                            Text(
+                              'Chargement...',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ],
+                        ),
+                      )
+                    : _filteredPasswords.isEmpty
+                        ? _buildEmptyState()
+                        : FadeTransition(
+                            opacity: _fadeAnimation,
+                            child: ListView.builder(
+                              padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                              itemCount: _filteredPasswords.length,
+                              itemBuilder: (context, index) {
+                                return _buildPasswordCard(_filteredPasswords[index]);
+                              },
+                            ),
+                          ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.primaryColor.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: FloatingActionButton(
+          onPressed: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const AddPasswordScreen(),
+              ),
+            );
+            if (result == true) {
+              _loadPasswords();
+            }
+          },
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: const Icon(Icons.add_rounded, color: Colors.white),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildActionButton({required IconData icon, required VoidCallback onPressed}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: IconButton(
+        icon: Icon(icon, color: Colors.white, size: 20),
+        onPressed: onPressed,
+        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+        padding: const EdgeInsets.all(8),
+      ),
+    );
+  }
+  
+  Widget _buildStatistic({
+    required int count,
+    required String label,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(height: 4),
+        Text(
+          count.toString(),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
         Text(
           label,
           style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[700],
+            fontSize: 10,
+            color: Colors.grey[600],
           ),
+          textAlign: TextAlign.center,
         ),
       ],
     );
@@ -556,329 +887,533 @@ class _PasswordListScreenState extends State<PasswordListScreen> with SingleTick
   
   Widget _buildEmptyState() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            _searchQuery.isNotEmpty
-                ? Icons.search_off
-                : _showOnlyFavorites
-                    ? Icons.star_border
-                    : Icons.lock_open,
-            size: 80,
-            color: Colors.grey[400],
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.9),
+            borderRadius: BorderRadius.circular(20),
           ),
-          SizedBox(height: 16),
-          Text(
-            _searchQuery.isNotEmpty
-                ? 'Aucun résultat pour "$_searchQuery"'
-                : _showOnlyFavorites
-                    ? 'Aucun mot de passe favori'
-                    : 'Aucun mot de passe enregistré',
-            style: TextStyle(
-              fontSize: 18,
-              color: Colors.grey[600],
-            ),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: 8),
-          Text(
-            _searchQuery.isNotEmpty
-                ? 'Essayez d\'autres mots-clés'
-                : _showOnlyFavorites
-                    ? 'Marquez des mots de passe comme favoris pour les retrouver ici'
-                    : 'Ajoutez votre premier mot de passe en cliquant sur le bouton +',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[500],
-            ),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: 32),
-          if (!_showOnlyFavorites && _searchQuery.isEmpty)
-            ElevatedButton.icon(
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AddPasswordScreen(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  _searchQuery.isNotEmpty
+                      ? Icons.search_off_rounded
+                      : Icons.lock_open_rounded,
+                  size: 48,
+                  color: Colors.grey[400],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _searchQuery.isNotEmpty
+                    ? 'Aucun résultat'
+                    : 'Aucun mot de passe',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _searchQuery.isNotEmpty
+                    ? 'Essayez d\'autres termes'
+                    : 'Ajoutez votre premier mot de passe',
+                style: TextStyle(color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+              if (_searchQuery.isEmpty) ...[
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AddPasswordScreen(),
+                      ),
+                    );
+                    if (result == true) {
+                      _loadPasswords();
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                );
-                if (result == true) {
-                  _loadPasswords();
-                }
-              },
-              icon: Icon(Icons.add),
-              label: Text('Ajouter un mot de passe'),
-            ),
-        ],
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Ajouter'),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
-  Widget _buildPasswordList() {
-  return ListView.builder(
-    itemCount: _filteredPasswords.length,
-    itemBuilder: (context, index) {
-      final password = _filteredPasswords[index];
-      // Utiliser Dismissible pour les actions swipe
-      return Dismissible(
+  
+  Widget _buildPasswordCard(PasswordModel password) {
+    final strength = _calculatePasswordStrength(password.password);
+    final strengthColor = strength >= 70 ? Colors.green : 
+                         strength >= 40 ? Colors.orange : Colors.red;
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Dismissible(
         key: Key(password.id),
-        // Swipe gauche -> supprimer
         background: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.green, Colors.green.shade600],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.green.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
           alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.only(left: 20),
-          color: AppTheme.errorColor,
-          child: Row(
-            children: const [
-              Icon(Icons.delete, color: Colors.white),
+          child: const Row(
+            children: [
+              Icon(Icons.star_rounded, color: Colors.white, size: 24),
               SizedBox(width: 8),
-              Text('Supprimer', style: TextStyle(color: Colors.white)),
+              Text(
+                'Ajouter aux favoris',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
             ],
           ),
         ),
-        // Swipe droit -> favori
         secondaryBackground: Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.red, Colors.red.shade600],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.red.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
           alignment: Alignment.centerRight,
-          padding: const EdgeInsets.only(right: 20),
-          color: password.isFavorite ? Colors.grey : Colors.amber,
-          child: Row(
+          child: const Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               Text(
-                password.isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris', 
-                style: const TextStyle(color: Colors.white),
+                'Supprimer',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
-              const SizedBox(width: 8),
-              Icon(
-                password.isFavorite ? Icons.star_border : Icons.star, 
-                color: Colors.white,
-              ),
+              SizedBox(width: 8),
+              Icon(Icons.delete_rounded, color: Colors.white, size: 24),
             ],
           ),
         ),
-        // Confirmer suppression
         confirmDismiss: (direction) async {
           if (direction == DismissDirection.startToEnd) {
-            // Demander confirmation pour suppression
-            return await _confirmDeleteDialog(password);
-          } else {
-            // Pour les favoris, pas besoin de confirmation
             await _toggleFavorite(password);
-            return false; // Ne pas supprimer l'élément de la liste
+            return false;
+          } else {
+            return await showDialog<bool>(
+              context: context,
+              builder: (context) => _buildDeleteDialog(password),
+            ) ?? false;
           }
         },
-        // Action à effectuer après confirmation
-        onDismissed: (direction) {
-          if (direction == DismissDirection.startToEnd) {
-            _deletePassword(password);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Mot de passe supprimé'),
-                action: SnackBarAction(
-                  label: 'Annuler',
-                  onPressed: () {
-                    // Récupérer le mot de passe
-                    _loadPasswords();
-                  },
-                ),
+        child: GestureDetector(
+          onTap: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => PasswordDetailScreen(password: password),
               ),
             );
-          }
-        },
-        child: _buildPasswordCard(password),
-      );
-    },
-  );
-}
-
-// Boite de dialogue de confirmation
-Future<bool> _confirmDeleteDialog(PasswordModel password) async {
-  return await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Supprimer le mot de passe'),
-      content: Text('Voulez-vous vraiment supprimer "${password.title}"? Cette action ne peut pas être annulée.'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Annuler'),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.errorColor,
-            foregroundColor: Colors.white,
-          ),
-          child: const Text('Supprimer'),
-        ),
-      ],
-    ),
-  ) ?? false;
-}
-  Widget _buildPasswordCard(PasswordModel password) {
-  // Modification: ajouter de la semantics pour l'accessibilité
-  return Semantics(
-    label: 'Mot de passe pour ${password.title}',
-    hint: 'Balayez vers la gauche pour mettre en favori, vers la droite pour supprimer',
-    button: true,
-    onTap: () async {
-      final result = await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => PasswordDetailScreen(password: password),
-        ),
-      );
-      if (result == true) {
-        _loadPasswords();
-      }
-    },
-    child: Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => PasswordDetailScreen(password: password),
-            ),
-          );
-          if (result == true) {
-            _loadPasswords();
-          }
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              // Category icon
-              Hero(
-                tag: 'icon_${password.id}',
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: _getCategoryColor(password).withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    _getCategoryIcon(password),
-                    color: _getCategoryColor(password),
-                    size: 24,
-                  ),
-                ),
+            if (result == true) {
+              _loadPasswords();
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withOpacity(0.95),
+                  Colors.white.withOpacity(0.9),
+                ],
               ),
-              SizedBox(width: 16),
-              
-              // Password info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            password.title,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+                BoxShadow(
+                  color: _getCategoryColor(password).withOpacity(0.1),
+                  blurRadius: 15,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+              border: Border.all(
+                color: Colors.white.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                // Icône avec design premium
+                Hero(
+                  tag: 'icon_${password.id}',
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          _getCategoryColor(password),
+                          _getCategoryColor(password).withOpacity(0.7),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: _getCategoryColor(password).withOpacity(0.4),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
                         ),
-                        if (password.isFavorite)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 8.0),
-                            child: Icon(
-                              Icons.star,
-                              color: Colors.amber,
-                              size: 18,
-                            ),
-                          ),
+                        BoxShadow(
+                          color: _getCategoryColor(password).withOpacity(0.2),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
                       ],
                     ),
-                    SizedBox(height: 4),
-                    Text(
-                      password.username,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    child: Icon(
+                      _getCategoryIcon(password),
+                      color: Colors.white,
+                      size: 28,
                     ),
-                    if (password.website.isNotEmpty) ...[
-                      SizedBox(height: 2),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                
+                // Informations avec meilleure hiérarchie
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              password.title,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                                letterSpacing: 0.3,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (password.isFavorite)
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [Colors.amber, Colors.amber.shade600],
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.amber.withOpacity(0.3),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.star_rounded,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
                       Text(
-                        password.website,
+                        password.username,
                         style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[500],
+                          fontSize: 15,
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w500,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      if (password.website.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(3),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[200],
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Icon(
+                                Icons.language_rounded,
+                                size: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                password.website,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[500],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      // Indicateur de force amélioré
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  strengthColor.withOpacity(0.2),
+                                  strengthColor.withOpacity(0.1),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: strengthColor.withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  strength >= 70 ? Icons.shield_rounded : 
+                                  strength >= 40 ? Icons.warning_rounded : Icons.error_rounded,
+                                  size: 12,
+                                  color: strengthColor,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  strength >= 70 ? 'Fort' : strength >= 40 ? 'Moyen' : 'Faible',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: strengthColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              
-              // Action button
-              IconButton(
-                icon: const Icon(Icons.content_copy),
-                tooltip: 'Copier le mot de passe',
-                iconSize: 20,
-                onPressed: () => _copyToClipboard(password.password, 'Mot de passe'),
-              ),
-            ],
+                
+                // Action button premium
+                Container(
+                  margin: const EdgeInsets.only(left: 12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppTheme.primaryColor.withOpacity(0.1),
+                        AppTheme.secondaryColor.withOpacity(0.1),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: AppTheme.primaryColor.withOpacity(0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: IconButton(
+                    icon: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.content_copy_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                    onPressed: () => _copyToClipboard(password.password, 'Mot de passe'),
+                    constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                    padding: const EdgeInsets.all(8),
+                    tooltip: 'Copier le mot de passe',
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
   
   Color _getCategoryColor(PasswordModel password) {
-    if (password.title.toLowerCase().contains('bank') || 
-        password.title.toLowerCase().contains('credit') ||
-        password.title.toLowerCase().contains('banque') ||
-        password.title.toLowerCase().contains('carte')) {
+    final title = password.title.toLowerCase();
+    final website = password.website.toLowerCase();
+    
+    // Finances - Vert
+    if (title.contains('bank') || title.contains('banque') || 
+        title.contains('credit') || title.contains('carte') ||
+        title.contains('paypal') || title.contains('crypto')) {
       return Colors.green;
-    } else if (password.website.isNotEmpty) {
-      return AppTheme.primaryColor;
-    } else if (password.title.toLowerCase().contains('app')) {
+    }
+    // Réseaux sociaux - Violet
+    else if (title.contains('facebook') || title.contains('instagram') || 
+             title.contains('twitter') || title.contains('linkedin') ||
+             title.contains('social') || website.contains('facebook') ||
+             website.contains('instagram') || website.contains('twitter')) {
       return Colors.purple;
-    } else if (password.title.toLowerCase().contains('email') || 
-               password.title.toLowerCase().contains('mail')) {
+    }
+    // Email - Orange
+    else if (title.contains('email') || title.contains('mail') || 
+             title.contains('gmail') || title.contains('outlook') ||
+             website.contains('gmail') || website.contains('outlook')) {
       return Colors.orange;
     }
-    return Colors.grey;
+    // Shopping - Rose
+    else if (title.contains('amazon') || title.contains('shop') || 
+             title.contains('store') || title.contains('commerce') ||
+             website.contains('amazon') || website.contains('shop')) {
+      return Colors.pink;
+    }
+    // Travail - Indigo
+    else if (title.contains('work') || title.contains('office') || 
+             title.contains('slack') || title.contains('teams') ||
+             title.contains('travail') || title.contains('bureau')) {
+      return Colors.indigo;
+    }
+    // Streaming/Divertissement - Rouge
+    else if (title.contains('netflix') || title.contains('youtube') || 
+             title.contains('spotify') || title.contains('gaming') ||
+             title.contains('steam') || website.contains('netflix')) {
+      return Colors.red;
+    }
+    // Sites web génériques - Bleu
+    else if (password.website.isNotEmpty) {
+      return AppTheme.primaryColor;
+    }
+    // Par défaut - Gris
+    else {
+      return Colors.grey;
+    }
   }
   
   IconData _getCategoryIcon(PasswordModel password) {
-    if (password.title.toLowerCase().contains('bank') || 
-        password.title.toLowerCase().contains('credit') ||
-        password.title.toLowerCase().contains('banque') ||
-        password.title.toLowerCase().contains('carte')) {
-      return Icons.account_balance;
-    } else if (password.website.isNotEmpty) {
-      return Icons.language;
-    } else if (password.title.toLowerCase().contains('app')) {
-      return Icons.apps;
-    } else if (password.title.toLowerCase().contains('email') || 
-               password.title.toLowerCase().contains('mail')) {
-      return Icons.email;
+    final title = password.title.toLowerCase();
+    final website = password.website.toLowerCase();
+    
+    // Finances
+    if (title.contains('bank') || title.contains('banque') || 
+        title.contains('credit') || title.contains('carte')) {
+      return Icons.account_balance_rounded;
     }
-    return Icons.lock;
-  }
-  
-  String _formatDate(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+    // Crypto
+    else if (title.contains('crypto') || title.contains('bitcoin') || 
+             title.contains('ethereum')) {
+      return Icons.currency_bitcoin_rounded;
+    }
+    // Réseaux sociaux
+    else if (title.contains('facebook') || title.contains('instagram') || 
+             title.contains('twitter') || title.contains('linkedin') ||
+             website.contains('facebook') || website.contains('instagram')) {
+      return Icons.people_rounded;
+    }
+    // Email
+    else if (title.contains('email') || title.contains('mail') || 
+             title.contains('gmail') || website.contains('gmail')) {
+      return Icons.email_rounded;
+    }
+    // Shopping
+    else if (title.contains('amazon') || title.contains('shop') || 
+             title.contains('store') || website.contains('amazon')) {
+      return Icons.shopping_cart_rounded;
+    }
+    // Travail
+    else if (title.contains('work') || title.contains('office') || 
+             title.contains('slack') || title.contains('teams')) {
+      return Icons.work_rounded;
+    }
+    // Streaming
+    else if (title.contains('netflix') || title.contains('youtube') || 
+             title.contains('spotify') || website.contains('netflix')) {
+      return Icons.play_circle_rounded;
+    }
+    // Gaming
+    else if (title.contains('gaming') || title.contains('steam') || 
+             title.contains('xbox') || title.contains('playstation')) {
+      return Icons.sports_esports_rounded;
+    }
+    // Cloud/Storage
+    else if (title.contains('drive') || title.contains('dropbox') || 
+             title.contains('cloud') || title.contains('storage')) {
+      return Icons.cloud_rounded;
+    }
+    // Sites web génériques
+    else if (password.website.isNotEmpty) {
+      return Icons.language_rounded;
+    }
+    // Par défaut
+    else {
+      return Icons.lock_rounded;
+    }
   }
 }

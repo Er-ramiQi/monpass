@@ -168,10 +168,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
-          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.1),
@@ -180,49 +176,43 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
             ),
           ],
         ),
-        child: ClipRRect(
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: _onBottomNavTapped,
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.white,
+          selectedItemColor: AppTheme.primaryColor,
+          unselectedItemColor: Colors.grey[600],
+          selectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
           ),
-          child: BottomNavigationBar(
-            currentIndex: _currentIndex,
-            onTap: _onBottomNavTapped,
-            type: BottomNavigationBarType.fixed,
-            backgroundColor: Colors.white,
-            selectedItemColor: AppTheme.primaryColor,
-            unselectedItemColor: Colors.grey[600],
-            selectedLabelStyle: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-            unselectedLabelStyle: const TextStyle(
-              fontSize: 11,
-            ),
-            elevation: 0,
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.home_outlined),
-                activeIcon: Icon(Icons.home),
-                label: 'Accueil',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.lock_outline),
-                activeIcon: Icon(Icons.lock),
-                label: 'Mots de passe',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.person_outline),
-                activeIcon: Icon(Icons.person),
-                label: 'Profil',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.settings_outlined),
-                activeIcon: Icon(Icons.settings),
-                label: 'Paramètres',
-              ),
-            ],
+          unselectedLabelStyle: const TextStyle(
+            fontSize: 11,
           ),
+          elevation: 8,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
+              label: 'Accueil',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.lock_outline),
+              activeIcon: Icon(Icons.lock),
+              label: 'Mots de passe',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
+              label: 'Profil',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.settings_outlined),
+              activeIcon: Icon(Icons.settings),
+              label: 'Paramètres',
+            ),
+          ],
         ),
       ),
       floatingActionButton: _currentIndex == 1 ? FloatingActionButton(
@@ -282,387 +272,273 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       opacity: _fadeAnimation,
       child: SlideTransition(
         position: _slideAnimation,
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 20),
-                      
-                      // Header avec animation
-                      AnimatedBuilder(
-                        animation: _pulseAnimation,
-                        builder: (context, child) {
-                          return Transform.scale(
-                            scale: _pulseAnimation.value,
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 60,
-                                  height: 60,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        Colors.white.withOpacity(0.9),
-                                        Colors.white.withOpacity(0.7),
-                                      ],
-                                    ),
-                                    shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.1),
-                                        blurRadius: 15,
-                                        offset: const Offset(0, 5),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Icon(
-                                    Icons.person,
-                                    size: 30,
-                                    color: AppTheme.primaryColor,
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      ShaderMask(
-                                        shaderCallback: (bounds) => LinearGradient(
-                                          colors: [
-                                            Colors.white,
-                                            Colors.white.withOpacity(0.8),
-                                          ],
-                                        ).createShader(bounds),
-                                        child: const Text(
-                                          'Bonjour,',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w300,
-                                          ),
-                                        ),
-                                      ),
-                                      ShaderMask(
-                                        shaderCallback: (bounds) => LinearGradient(
-                                          colors: [
-                                            Colors.white,
-                                            Colors.white.withOpacity(0.9),
-                                          ],
-                                        ).createShader(bounds),
-                                        child: Text(
-                                          _userProfile?['displayName'] ?? 'Utilisateur',
-                                          style: const TextStyle(
-                                            fontSize: 24,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
-                                            letterSpacing: 0.5,
-                                          ),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: IconButton(
-                                    icon: const Icon(
-                                      Icons.notifications_outlined,
-                                      color: Colors.white,
-                                    ),
-                                    onPressed: () {
-                                      // TODO: Naviguer vers les notifications
-                                    },
-                                  ),
-                                ),
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 10),
+              
+              // Header avec animation - Version compacte
+              AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _pulseAnimation.value,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.white.withOpacity(0.9),
+                                Colors.white.withOpacity(0.7),
                               ],
                             ),
-                          );
-                        },
-                      ),
-                      
-                      const SizedBox(height: 32),
-                      
-                      // Conseils de sécurité - Déplacé en haut
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.9),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 15,
-                              offset: const Offset(0, 5),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.lightBlue.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    Icons.lightbulb_outline,
-                                    color: Colors.lightBlue,
-                                    size: 20,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                const Text(
-                                  'Conseil du jour',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              _getTipOfTheDay(),
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[700],
-                                height: 1.4,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.person,
+                            size: 24,
+                            color: AppTheme.primaryColor,
+                          ),
                         ),
-                      ),
-                      
-                      const SizedBox(height: 32),
-                      
-                      // Statistiques rapides
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.95),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            _buildStatCard(
-                              icon: Icons.lock,
-                              count: '0',
-                              label: 'Mots de passe',
-                              color: Colors.blue,
-                            ),
-                            Container(
-                              width: 1,
-                              height: 40,
-                              color: Colors.grey[300],
-                            ),
-                            _buildStatCard(
-                              icon: Icons.star,
-                              count: '0',
-                              label: 'Favoris',
-                              color: Colors.amber,
-                            ),
-                            Container(
-                              width: 1,
-                              height: 40,
-                              color: Colors.grey[300],
-                            ),
-                            _buildStatCard(
-                              icon: Icons.shield,
-                              count: _userProfile?['is2FAEnabled'] == true ? '100%' : '60%',
-                              label: 'Sécurité',
-                              color: _userProfile?['is2FAEnabled'] == true ? Colors.green : Colors.orange,
-                            ),
-                          ],
-                        ),
-                      ),
-                      
-                      const SizedBox(height: 24),
-                      
-                      // Actions rapides
-                      const Text(
-                        'Actions rapides',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      // Grid des actions avec taille optimisée
-                      SizedBox(
-                        height: 260, // Hauteur réduite
-                        child: GridView.count(
-                          crossAxisCount: 2,
-                          physics: const NeverScrollableScrollPhysics(),
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          childAspectRatio: 1.4, // Ratio ajusté
-                          children: [
-                            _buildActionCard(
-                              icon: Icons.add_circle_outline,
-                              title: 'Nouveau\nmot de passe',
-                              color: Colors.green,
-                              onTap: () async {
-                                await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const AddPasswordScreen(),
-                                  ),
-                                );
-                              },
-                            ),
-                            _buildActionCard(
-                              icon: Icons.password,
-                              title: 'Générateur',
-                              color: Colors.purple,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const PasswordGeneratorScreen(),
-                                  ),
-                                );
-                              },
-                            ),
-                            _buildActionCard(
-                              icon: Icons.list_alt,
-                              title: 'Mes mots\nde passe',
-                              color: Colors.blue,
-                              onTap: () {
-                                _onBottomNavTapped(1);
-                              },
-                            ),
-                            _buildActionCard(
-                              icon: Icons.person,
-                              title: 'Mon profil',
-                              color: Colors.teal,
-                              onTap: () {
-                                _onBottomNavTapped(2);
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                      
-                      const SizedBox(height: 24),
-                      
-                      // Section Activité récente
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.9),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 15,
-                              offset: const Offset(0, 5),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    Icons.history,
-                                    color: Colors.green,
-                                    size: 20,
-                                  ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Bonjour,',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.white70,
+                                  fontWeight: FontWeight.w300,
                                 ),
-                                const SizedBox(width: 12),
-                                const Text(
-                                  'Activité récente',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                const Spacer(),
-                                TextButton(
-                                  onPressed: () {
-                                    _onBottomNavTapped(1); // Aller aux mots de passe
-                                  },
-                                  child: Text(
-                                    'Voir tout',
-                                    style: TextStyle(
-                                      color: AppTheme.primaryColor,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[50],
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey[200]!),
                               ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.info_outline,
-                                    color: Colors.grey[600],
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      'Aucune activité récente. Commencez par ajouter votre premier mot de passe !',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                              Text(
+                                _userProfile?['displayName'] ?? 'Utilisateur',
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.notifications_outlined,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            onPressed: () {
+                              // TODO: Naviguer vers les notifications
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              
+              const SizedBox(height: 20),
+              
+              // Conseil du jour - Version compacte
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.lightBlue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Icon(
+                            Icons.lightbulb_outline,
+                            color: Colors.lightBlue,
+                            size: 16,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Conseil du jour',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _getTipOfTheDay(),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[700],
+                        height: 1.3,
                       ),
-                      
-                      const SizedBox(height: 50), // Espace pour la bottom bar
-                    ],
-                  ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ],
+              
+              const SizedBox(height: 20),
+              
+              // Statistiques rapides - Version optimisée
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.95),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 15,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildStatCard(
+                      icon: Icons.lock,
+                      count: '0',
+                      label: 'Mots de passe',
+                      color: Colors.blue,
+                    ),
+                    Container(
+                      width: 1,
+                      height: 30,
+                      color: Colors.grey[300],
+                    ),
+                    _buildStatCard(
+                      icon: Icons.star,
+                      count: '0',
+                      label: 'Favoris',
+                      color: Colors.amber,
+                    ),
+                    Container(
+                      width: 1,
+                      height: 30,
+                      color: Colors.grey[300],
+                    ),
+                    _buildStatCard(
+                      icon: Icons.shield,
+                      count: _userProfile?['is2FAEnabled'] == true ? '100%' : '60%',
+                      label: 'Sécurité',
+                      color: _userProfile?['is2FAEnabled'] == true ? Colors.green : Colors.orange,
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 20),
+              
+              // Actions rapides
+              const Text(
+                'Actions rapides',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // Grid des actions avec taille optimisée
+              Expanded(
+                child: GridView.count(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 1.5,
+                  children: [
+                    _buildActionCard(
+                      icon: Icons.add_circle_outline,
+                      title: 'Nouveau\nmot de passe',
+                      color: Colors.green,
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AddPasswordScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildActionCard(
+                      icon: Icons.password,
+                      title: 'Générateur',
+                      color: Colors.purple,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PasswordGeneratorScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildActionCard(
+                      icon: Icons.list_alt,
+                      title: 'Mes mots\nde passe',
+                      color: Colors.blue,
+                      onTap: () {
+                        _onBottomNavTapped(1);
+                      },
+                    ),
+                    _buildActionCard(
+                      icon: Icons.person,
+                      title: 'Mon profil',
+                      color: Colors.teal,
+                      onTap: () {
+                        _onBottomNavTapped(2);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 10),
+            ],
+          ),
         ),
       ),
     );
@@ -674,41 +550,45 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
     required String label,
     required Color color,
   }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
+    return Flexible(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(
+              icon,
+              color: color,
+              size: 16,
+            ),
           ),
-          child: Icon(
-            icon,
-            color: color,
-            size: 20,
+          const SizedBox(height: 6),
+          Text(
+            count,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          count,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: color,
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-            fontWeight: FontWeight.w500,
-          ),
-          textAlign: TextAlign.center,
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -720,17 +600,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(14),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.9),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.1),
-              blurRadius: 15,
-              offset: const Offset(0, 5),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
@@ -738,22 +618,22 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
                 icon,
-                size: 24,
+                size: 20,
                 color: color,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               title,
               style: const TextStyle(
-                fontSize: 13,
+                fontSize: 11,
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
                 height: 1.2,
