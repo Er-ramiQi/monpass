@@ -5,7 +5,7 @@ import 'package:monpass/theme/app_theme.dart';
 import '../../services/auth_service.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
-import '../password/password_list_screen.dart';
+import '../main_navigation_screen.dart';
 import 'otp_verification_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -176,7 +176,7 @@ class _LoginScreenState extends State<LoginScreen>
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => const PasswordListScreen(),
+              builder: (context) => const MainNavigationScreen(),
             ),
           );
         }

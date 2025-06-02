@@ -5,7 +5,7 @@ import 'package:pin_code_fields/pin_code_fields.dart';
 import 'package:monpass/services/phone_auth_service.dart';
 import 'package:monpass/services/user_service.dart';
 import 'package:monpass/services/auth_service.dart';
-import 'package:monpass/screens/password/password_list_screen.dart';
+import 'package:monpass/screens/main_navigation_screen.dart';
 import 'package:monpass/screens/auth/login_screen.dart';
 import 'package:monpass/theme/app_theme.dart';
 import 'dart:async';
@@ -303,7 +303,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen>
         
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const PasswordListScreen()),
+            MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
             (route) => false,
           );
         }

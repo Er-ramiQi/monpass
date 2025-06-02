@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../theme/app_theme.dart';
 import '../../services/auth_service.dart';
 import '../../services/secure_storage_service.dart';
-import '../password/password_list_screen.dart';
+import '../main_navigation_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -165,7 +165,7 @@ class _RegisterScreenState extends State<RegisterScreen>
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => const PasswordListScreen(),
+              builder: (context) => const MainNavigationScreen()
             ),
           );
         }

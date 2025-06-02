@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
 import '../../services/user_service.dart';
-import '../password/password_list_screen.dart';
+import '../main_navigation_screen.dart';
 import 'login_screen.dart';
 import 'otp_verification_screen.dart';
 
@@ -144,8 +144,8 @@ class _AuthGateState extends State<AuthGate> {
         phoneNumber: _phoneNumber,
       );
     } else {
-      // Authentication complete - show password list
-      return const PasswordListScreen();
+      // Authentication complete - show main navigation
+      return const MainNavigationScreen();
     }
   }
 }
