@@ -7,7 +7,6 @@ import 'package:monpass/services/user_service.dart';
 import 'package:monpass/services/auth_service.dart';
 import 'package:monpass/screens/main_navigation_screen.dart';
 import 'package:monpass/screens/auth/login_screen.dart';
-import 'package:monpass/theme/app_theme.dart';
 import 'dart:async';
 
 class OtpVerificationScreen extends StatefulWidget {

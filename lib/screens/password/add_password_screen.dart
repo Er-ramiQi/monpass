@@ -611,13 +611,15 @@ class _AddPasswordScreenState extends State<AddPasswordScreen>
                                     ),
                                     const SizedBox(width: 12), // RÉDUIT de 16 à 12
                                     Expanded(
-                                      child: Text(
-                                        'Nouveau mot de passe',
-                                        style: TextStyle(
-                                          fontSize: isTablet ? 24 : 20, // RÉDUIT
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                          letterSpacing: 0.3, // RÉDUIT de 0.5 à 0.3
+                                      child: Center(
+                                        child: Text(
+                                          'Nouveau mot de passe',
+                                          style: TextStyle(
+                                            fontSize: isTablet ? 24 : 20, // RÉDUIT
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                            letterSpacing: 0.3, // RÉDUIT de 0.5 à 0.3
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -1002,12 +1004,12 @@ class _AddPasswordScreenState extends State<AddPasswordScreen>
             style: const TextStyle(
               fontSize: 15, // RÉDUIT de 16 à 15
               fontWeight: FontWeight.w600, // PLUS GRAS
-              color: Color(0xFF1A1A1A), // COULEUR PLUS VISIBLE (noir foncé)
+              color: Color(0xFF2196F3), // COULEUR BLEUE VISIBLE
             ),
             decoration: InputDecoration(
               hintText: hint,
               hintStyle: TextStyle(
-                color: Color(0xFF666666), // COULEUR PLUS VISIBLE (gris moyen)
+                color: Color(0xFF9E9E9E), // COULEUR GRISE PLUS VISIBLE
                 fontSize: 14, // RÉDUIT de 15 à 14
                 fontWeight: FontWeight.w500,
               ),
@@ -1078,7 +1080,7 @@ class _AddPasswordScreenState extends State<AddPasswordScreen>
               fontSize: 15, // RÉDUIT de 16 à 15
               fontWeight: FontWeight.w600,
               color: _obscurePassword 
-                  ? Color(0xFF1A1A1A) // COULEUR VISIBLE pour texte masqué
+                  ? Color(0xFF2196F3) // COULEUR BLEUE VISIBLE pour texte masqué
                   : Color(0xFF2196F3), // COULEUR BLEUE VISIBLE pour mot de passe visible
               fontFamily: _obscurePassword ? null : 'monospace',
               letterSpacing: _obscurePassword ? 2.0 : 1.0,
@@ -1086,7 +1088,7 @@ class _AddPasswordScreenState extends State<AddPasswordScreen>
             decoration: InputDecoration(
               hintText: 'Créez un mot de passe fort',
               hintStyle: TextStyle(
-                color: Color(0xFF666666), // COULEUR PLUS VISIBLE
+                color: Color(0xFF9E9E9E), // COULEUR GRISE PLUS VISIBLE
                 fontSize: 14, // RÉDUIT de 15 à 14
                 fontWeight: FontWeight.w500,
               ),
@@ -1229,7 +1231,7 @@ class _AddPasswordScreenState extends State<AddPasswordScreen>
                     ),
                     const Spacer(),
                     Text(
-                      '${_passwordStrength}%',
+                      '$_passwordStrength%',
                       style: TextStyle(
                         fontSize: 13, // RÉDUIT de 14 à 13
                         fontWeight: FontWeight.bold,
@@ -1343,12 +1345,36 @@ class __PasswordGeneratorSheetState extends State<_PasswordGeneratorSheet> {
       }
 
       String password = '';
+      
+      // Garantir qu'au moins un caractère de chaque type sélectionné est présent
+      List<String> requiredChars = [];
+      if (_includeUppercase) requiredChars.add(uppercaseChars[DateTime.now().microsecond % uppercaseChars.length]);
+      if (_includeLowercase) requiredChars.add(lowercaseChars[DateTime.now().millisecond % lowercaseChars.length]);
+      if (_includeNumbers) requiredChars.add(numberChars[DateTime.now().second % numberChars.length]);
+      if (_includeSpecial) requiredChars.add(specialChars[DateTime.now().minute % specialChars.length]);
+      
+      // Ajouter les caractères obligatoires
+      for (String char in requiredChars) {
+        password += char;
+      }
+      
+      // Compléter avec des caractères aléatoires
       final random = DateTime.now().microsecondsSinceEpoch;
-      for (int i = 0; i < _passwordLength; i++) {
-        final index = (random + i) % chars.length;
+      for (int i = password.length; i < _passwordLength; i++) {
+        final index = (random * (i + 1) + DateTime.now().microsecond) % chars.length;
         password += chars[index];
       }
-      _generatedPassword = password;
+      
+      // Mélanger les caractères pour éviter les patterns prévisibles
+      List<String> passwordChars = password.split('');
+      for (int i = passwordChars.length - 1; i > 0; i--) {
+        int j = (random + i * 7) % (i + 1);
+        String temp = passwordChars[i];
+        passwordChars[i] = passwordChars[j];
+        passwordChars[j] = temp;
+      }
+      
+      _generatedPassword = passwordChars.join('');
     }
 
     setState(() {});
@@ -1360,29 +1386,44 @@ class __PasswordGeneratorSheetState extends State<_PasswordGeneratorSheet> {
       'water', 'ocean', 'river', 'mountain', 'forest', 'desert', 'island',
       'castle', 'palace', 'temple', 'pyramid', 'bridge', 'tunnel', 'tower',
       'dragon', 'phoenix', 'unicorn', 'griffin', 'pegasus', 'mermaid', 'wizard',
+      'guitar', 'piano', 'violin', 'drums', 'flute', 'trumpet', 'saxophone',
+      'moon', 'star', 'planet', 'galaxy', 'nebula', 'comet', 'meteor',
     ];
 
     String password = '';
     final random = DateTime.now().microsecondsSinceEpoch;
     
     for (int i = 0; i < _wordCount; i++) {
-      String word = words[(random + i) % words.length];
+      // Utiliser une meilleure méthode de sélection aléatoire
+      String word = words[(random * (i + 1)) % words.length];
+      
+      // Capitaliser le premier mot si les majuscules sont activées
       if (_includeUppercase && i == 0) {
         word = word[0].toUpperCase() + word.substring(1);
       }
+      
       password += word;
       
+      // Ajouter des séparateurs entre les mots
       if (i < _wordCount - 1) {
         if (_includeNumbers) {
-          password += ((random + i) % 10).toString();
+          password += ((random + i * 13) % 10).toString();
         } else if (_includeSpecial) {
-          password += '-';
+          final separators = ['-', '_', '.', '+'];
+          password += separators[(random + i) % separators.length];
         }
       }
     }
 
+    // Ajouter des chiffres à la fin si demandé et pas encore présents
     if (_includeNumbers && !password.contains(RegExp(r'\d'))) {
-      password += (random % 100).toString();
+      password += ((random % 89) + 10).toString(); // Nombre à 2 chiffres
+    }
+
+    // Ajouter un caractère spécial à la fin si demandé
+    if (_includeSpecial && !RegExp(r'[!@#$%^&*()_\-+=\[\]{}|;:,.<>?]').hasMatch(password)) {
+      final specials = ['!', '@', '#', '\$', '%', '^', '&', '*'];
+      password += specials[random % specials.length];
     }
 
     return password;
@@ -1644,42 +1685,42 @@ class __PasswordGeneratorSheetState extends State<_PasswordGeneratorSheet> {
 
                   const SizedBox(height: 14), // RÉDUIT de 16 à 14
 
-                  // Options - OPTIMISÉ pour les caractères uniquement
-                  if (!_useWords) ...[
-                    Container(
-                      padding: const EdgeInsets.all(16), // RÉDUIT de 20 à 16
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14), // RÉDUIT de 16 à 14
-                        border: Border.all(color: Colors.grey[300]!),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Caractères à inclure',
-                            style: TextStyle(
-                              fontSize: 15, // RÉDUIT de 16 à 15
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
+                  // Options - OPTIMISÉ pour les deux types
+                  Container(
+                    padding: const EdgeInsets.all(16), // RÉDUIT de 20 à 16
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14), // RÉDUIT de 16 à 14
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _useWords ? 'Options pour les mots' : 'Caractères à inclure',
+                          style: const TextStyle(
+                            fontSize: 15, // RÉDUIT de 16 à 15
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
                           ),
-                          const SizedBox(height: 12), // RÉDUIT de 16 à 12
+                        ),
+                        const SizedBox(height: 12), // RÉDUIT de 16 à 12
 
-                          _buildSwitchTile(
-                            'Lettres majuscules (A-Z)',
-                            Icons.text_fields,
-                            _includeUppercase,
-                            (value) {
-                              if (value || _includeLowercase || _includeNumbers || _includeSpecial) {
-                                setState(() {
-                                  _includeUppercase = value;
-                                  _generatePassword();
-                                });
-                              }
-                            },
-                          ),
+                        _buildSwitchTile(
+                          _useWords ? 'Première lettre en majuscule' : 'Lettres majuscules (A-Z)',
+                          Icons.text_fields,
+                          _includeUppercase,
+                          (value) {
+                            if (value || _includeLowercase || _includeNumbers || _includeSpecial) {
+                              setState(() {
+                                _includeUppercase = value;
+                                _generatePassword();
+                              });
+                            }
+                          },
+                        ),
 
+                        if (!_useWords) ...[
                           _buildSwitchTile(
                             'Lettres minuscules (a-z)',
                             Icons.text_fields,
@@ -1693,35 +1734,37 @@ class __PasswordGeneratorSheetState extends State<_PasswordGeneratorSheet> {
                               }
                             },
                           ),
+                        ],
 
-                          _buildSwitchTile(
-                            'Chiffres (0-9)',
-                            Icons.numbers,
-                            _includeNumbers,
-                            (value) {
-                              if (value || _includeUppercase || _includeLowercase || _includeSpecial) {
-                                setState(() {
-                                  _includeNumbers = value;
-                                  _generatePassword();
-                                });
-                              }
-                            },
-                          ),
+                        _buildSwitchTile(
+                          _useWords ? 'Ajouter des chiffres' : 'Chiffres (0-9)',
+                          Icons.numbers,
+                          _includeNumbers,
+                          (value) {
+                            if (value || _includeUppercase || _includeLowercase || _includeSpecial) {
+                              setState(() {
+                                _includeNumbers = value;
+                                _generatePassword();
+                              });
+                            }
+                          },
+                        ),
 
-                          _buildSwitchTile(
-                            'Caractères spéciaux (!@#\$%^&*)',
-                            Icons.star,
-                            _includeSpecial,
-                            (value) {
-                              if (value || _includeUppercase || _includeLowercase || _includeNumbers) {
-                                setState(() {
-                                  _includeSpecial = value;
-                                  _generatePassword();
-                                });
-                              }
-                            },
-                          ),
+                        _buildSwitchTile(
+                          _useWords ? 'Ajouter des caractères spéciaux' : 'Caractères spéciaux (!@#\$%^&*)',
+                          Icons.star,
+                          _includeSpecial,
+                          (value) {
+                            if (value || _includeUppercase || _includeLowercase || _includeNumbers) {
+                              setState(() {
+                                _includeSpecial = value;
+                                _generatePassword();
+                              });
+                            }
+                          },
+                        ),
 
+                        if (!_useWords) ...[
                           _buildSwitchTile(
                             'Éviter les caractères ambigus (1, l, I, 0, O)',
                             Icons.remove_red_eye,
@@ -1734,9 +1777,9 @@ class __PasswordGeneratorSheetState extends State<_PasswordGeneratorSheet> {
                             },
                           ),
                         ],
-                      ),
+                      ],
                     ),
-                  ],
+                  ),
 
                   const SizedBox(height: 20), // RÉDUIT de 24 à 20
 

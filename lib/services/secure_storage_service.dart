@@ -5,7 +5,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:crypto/crypto.dart';
 import 'package:encrypt/encrypt.dart' as encrypt;
 import 'package:uuid/uuid.dart';
-import 'dart:typed_data';
 
 class SecureStorageService {
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage(

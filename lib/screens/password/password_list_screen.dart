@@ -9,7 +9,6 @@ import '../../theme/app_theme.dart';
 import 'add_password_screen.dart';
 import 'password_detail_screen.dart';
 import 'password_generator_screen.dart';
-import '../settings/settings_screen.dart';
 
 class PasswordListScreen extends StatefulWidget {
   const PasswordListScreen({super.key});
