@@ -972,7 +972,7 @@ class _EditProfileScreenState extends State<EditProfileScreen>
                   const SizedBox(height: 4),
                   Text(
                     selectedDate != null
-                        ? '${selectedDate!.day.toString().padLeft(2, '0')}/${selectedDate!.month.toString().padLeft(2, '0')}/${selectedDate!.year}'
+                        ? '${selectedDate.day.toString().padLeft(2, '0')}/${selectedDate.month.toString().padLeft(2, '0')}/${selectedDate.year}'
                         : 'Sélectionner une date',
                     style: TextStyle(
                       fontSize: 16,
